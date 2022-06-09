@@ -36,6 +36,44 @@
 #include "ripngd/ripng_route.h"
 
 /*
+ * XPath: /frr-ripngd:ripngd/instance
+ */
+const void *ripngd_instance_get_next(struct nb_cb_get_next_args *args)
+{
+	struct ripng *ripng = (struct ripng *)args->list_entry;
+
+	if (args->list_entry == NULL)
+		ripng = RB_MIN(ripng_instance_head, &ripng_instances);
+	else
+		ripng = RB_NEXT(ripng_instance_head, ripng);
+
+	return ripng;
+}
+
+int ripngd_instance_get_keys(struct nb_cb_get_keys_args *args)
+{
+	const struct ripng *ripng = args->list_entry;
+
+	args->keys->num = 1;
+	strlcpy(args->keys->key[0], ripng->vrf_name,
+		sizeof(args->keys->key[0]));
+
+	return NB_OK;
+}
+
+const void *ripngd_instance_lookup_entry(struct nb_cb_lookup_entry_args *args)
+{
+	const char *vrf_name = args->keys->key[0];
+	struct ripng ripng;
+
+	ripng.vrf_name = (char *)vrf_name;
+	return args->exact_match
+		       ? RB_FIND(ripng_instance_head, &ripng_instances, &ripng)
+		       : RB_NFIND(ripng_instance_head, &ripng_instances,
+				  &ripng);
+}
+
+/*
  * XPath: /frr-ripngd:ripngd/instance/state/neighbors/neighbor
  */
 const void *ripngd_instance_state_neighbors_neighbor_get_next(
@@ -76,8 +114,13 @@ const void *ripngd_instance_state_neighbors_neighbor_lookup_entry(
 	yang_str2ipv6(args->keys->key[0], &address);
 
 	for (ALL_LIST_ELEMENTS_RO(ripng->peer_list, node, peer)) {
-		if (IPV6_ADDR_SAME(&peer->addr, &address))
-			return node;
+		if (args->exact_match) {
+			if (IPV6_ADDR_SAME(&peer->addr, &address))
+				return node;
+		} else {
+			if (IPV6_ADDR_CMP(&peer->addr, &address) >= 0)
+				return node;
+		}
 	}
 
 	return NULL;
@@ -173,6 +216,9 @@ const void *ripngd_instance_state_routes_route_lookup_entry(
 	yang_str2ipv6p(args->keys->key[0], &prefix);
 
 	rn = agg_node_lookup(ripng->table, &prefix);
+	if ((!rn || !rn->info) && !args->exact_match)
+		rn = agg_node_from_rnode(route_table_get_next(
+			ripng->table->route_table, &prefix));
 	if (!rn || !rn->info)
 		return NULL;
 

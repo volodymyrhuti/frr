@@ -1563,12 +1563,20 @@ lib_interface_lookup_entry(struct nb_cb_lookup_entry_args *args)
 		char ifname[XPATH_MAXLEN];
 		char vrfname[XPATH_MAXLEN];
 		struct vrf *vrf;
+		struct interface interface;
 
 		netns_ifname_split(args->keys->key[0], ifname, vrfname);
 
 		vrf = vrf_lookup_by_name(vrfname);
 
-		return vrf ? if_lookup_by_name(ifname, vrf->vrf_id) : NULL;
+		if (!vrf)
+			return NULL;
+	
+		strlcpy(interface.name, ifname, sizeof(interface.name));
+		return args->exact_match
+			       ? RB_FIND(if_name_head, &vrf->ifaces_by_name, &interface)
+			       : RB_NFIND(if_name_head, &vrf->ifaces_by_name,
+					  &interface);
 	} else {
 		return if_lookup_by_name_all_vrf(args->keys->key[0]);
 	}

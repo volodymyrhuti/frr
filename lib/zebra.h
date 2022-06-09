@@ -221,6 +221,10 @@
 extern "C" {
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef HAVE_STRLCAT
 size_t strlcat(char *__restrict dest,
 	       const char *__restrict src, size_t destsize);
@@ -247,6 +251,10 @@ static inline int sendmmsg(int fd, struct mmsghdr *mmh, unsigned int len,
 	int rv = sendmsg(fd, &mmh->msg_hdr, 0);
 
 	return rv > 0 ? 1 : rv;
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

@@ -1416,7 +1416,8 @@ DEFPY (show_config_transaction,
 
 static int nb_cli_oper_data_cb(const struct lysc_node *snode,
 			       struct yang_translator *translator,
-			       struct yang_data *data, void *arg)
+			       struct yang_data *data, void *arg, char *errmsg,
+			       size_t errmsg_len)
 {
 	struct lyd_node *dnode = arg;
 	struct ly_ctx *ly_ctx;
@@ -1440,22 +1441,27 @@ static int nb_cli_oper_data_cb(const struct lysc_node *snode,
 	} else
 		ly_ctx = ly_native_ctx;
 
-	LY_ERR err =
-		lyd_new_path(dnode, ly_ctx, data->xpath, (void *)data->value,
+	lyd_new_path(dnode, ly_ctx, data->xpath, (void *)data->value,
 			     LYD_NEW_PATH_UPDATE, &dnode);
-	if (err) {
+	if (!dnode) {
 		flog_warn(EC_LIB_LIBYANG, "%s: lyd_new_path(%s) failed: %s",
 			  __func__, data->xpath, ly_errmsg(ly_native_ctx));
 		goto error;
+        }
+#if 0
+	if (err) {
+	 dnode = lyd_new_path(dnode, ly_ctx, data->xpath, (void *)data->value, 0,
+			     LYD_PATH_OPT_UPDATE);
 	}
+#endif
 
 exit:
 	yang_data_free(data);
-	return NB_OK;
+	return NB_ITER_CONTINUE;
 
 error:
 	yang_data_free(data);
-	return NB_ERR;
+	return NB_ITER_ABORT;
 }
 
 DEFPY (show_yang_operational_data,
@@ -1465,6 +1471,7 @@ DEFPY (show_yang_operational_data,
 	   format <json$json|xml$xml>\
 	   |translate WORD$translator_family\
 	   |with-config$with_config\
+	   |max-elements (1-1000000)$max_elements [repeat$repeat]\
 	 }]",
        SHOW_STR
        "YANG information\n"
@@ -1475,38 +1482,60 @@ DEFPY (show_yang_operational_data,
        "Extensible Markup Language\n"
        "Translate operational data\n"
        "YANG module translator\n"
-       "Merge configuration data\n")
+       "Merge configuration data\n"
+       "Maximum number of elements to fetch at once\n"
+       "Maximum number of elements to fetch at once\n"
+       "Fetch all data using batches of the provided size\n")
 {
+	struct nb_oper_data_iter_input iter_input = {};
+	struct nb_oper_data_iter_output iter_output = {};
 	LYD_FORMAT format;
-	struct yang_translator *translator = NULL;
 	struct ly_ctx *ly_ctx;
 	struct lyd_node *dnode;
 	char *strp;
 	uint32_t print_options = LYD_PRINT_WITHSIBLINGS;
+	int ret;
 
+        DEBUG_MODE_ON(&nb_dbg_cbs_state, DEBUG_MODE_ALL);
 	if (xml)
 		format = LYD_XML;
 	else
 		format = LYD_JSON;
 
 	if (translator_family) {
-		translator = yang_translator_find(translator_family);
-		if (!translator) {
+		iter_input.translator = yang_translator_find(translator_family);
+		if (!iter_input.translator) {
 			vty_out(vty, "%% Module translator \"%s\" not found\n",
 				translator_family);
 			return CMD_WARNING;
 		}
 
-		ly_ctx = translator->ly_ctx;
+		ly_ctx = iter_input.translator->ly_ctx;
 	} else
 		ly_ctx = ly_native_ctx;
 
 	/* Obtain data. */
 	dnode = yang_dnode_new(ly_ctx, false);
-	if (nb_oper_data_iterate(xpath, translator, 0, nb_cli_oper_data_cb,
-				 dnode)
-	    != NB_OK) {
-		vty_out(vty, "%% Failed to fetch operational data.\n");
+	iter_input.xpath = xpath;
+	iter_input.cb = nb_cli_oper_data_cb;
+	iter_input.cb_arg = dnode;
+	if (max_elements_str)
+		iter_input.max_elements = max_elements;
+
+        int i = -1;
+	for (;;++i) {
+		ret = nb_oper_data_iterate(&iter_input, &iter_output);
+		if (!repeat || ret != NB_ITER_SUSPEND) {
+			break;
+                }
+
+		SET_FLAG(iter_input.flags, F_NB_OPER_DATA_ITER_OFFSET);
+		strlcpy(iter_input.offset_path, iter_output.offset_path,
+			sizeof(iter_input.offset_path));
+	}
+	if (ret == NB_ITER_ABORT) {
+		vty_out(vty, "%% Failed to fetch operational data: %s\n\n",
+			iter_output.errmsg);
 		yang_dnode_free(dnode);
 		return CMD_WARNING;
 	}
@@ -1517,7 +1546,8 @@ DEFPY (show_yang_operational_data,
 		if (config_dnode != NULL) {
 			lyd_merge_tree(&dnode, yang_dnode_dup(config_dnode),
 				       LYD_MERGE_DESTRUCT);
-			print_options |= LYD_PRINT_WD_ALL;
+			print_options |= LYD_PRINT_WD_EXPLICIT;
+			/* print_options |= LYD_PRINT_WD_ALL; */
 		}
 	}
 

@@ -32,8 +32,18 @@ export PYTHON=python3
 %:
 	dh $@
 
+export CFLAGS=-O0 -g3 -ggdb3 -fdebug-prefix-map=/home/vova/frr=. -fstack-protector-strong -Wformat -Werror=format-security
+export CPPFLAGS=-Wdate-time -D_FORTIFY_SOURCE=2
+export CXXFLAGS=-O0 -g3 -ggdb3 -fdebug-prefix-map=/home/vova/frr=. -fstack-protector-strong -Wformat -Werror=format-security
+export FCFLAGS=-O0 -g3 -ggdb3 -fdebug-prefix-map=/home/vova/frr=. -fstack-protector-strong
+export FFLAGS=-O0 -g3 -ggdb3 -fdebug-prefix-map=/home/vova/frr=. -fstack-protector-strong
+export GCJFLAGS=-O0 -g3 -ggdb3 -fdebug-prefix-map=/home/vova/frr=. -fstack-protector-strong
+export LDFLAGS=-Wl,-z,relro
+export OBJCFLAGS=-O0 -g3 -ggdb3 -fdebug-prefix-map=/home/vova/frr=. -fstack-protector-strong -Wformat -Werror=format-security
+export OBJCXXFLAGS=-O0 -g3 -ggdb3 -fdebug-prefix-map=/home/vova/frr=. -fstack-protector-strong -Wformat -Werror=format-security
+
 override_dh_auto_configure:
-	$(shell dpkg-buildflags --export=sh); \
+	# $(shell dpkg-buildflags --export=sh);
 	dh_auto_configure -- \
 		--localstatedir=/var/run/frr \
 		--sbindir=/usr/lib/frr \
@@ -56,6 +66,14 @@ override_dh_auto_configure:
 		--enable-ospfapi \
 		--enable-bgp-vnc \
 		--enable-multipath=256 \
+		\
+		--enable-sharpd \
+		--enable-grpc \
+		\
+		--enable-static-bin \
+		--enable-static \
+		--enable-shared \
+		--enable-dev-build \
 		\
 		--enable-user=frr \
 		--enable-group=frr \

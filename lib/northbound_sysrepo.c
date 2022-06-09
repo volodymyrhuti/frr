@@ -361,7 +361,8 @@ static int frr_sr_config_change_cb(sr_session_ctx_t *session, uint32_t sub_id,
 
 static int frr_sr_state_data_iter_cb(const struct lysc_node *snode,
 				     struct yang_translator *translator,
-				     struct yang_data *data, void *arg)
+				     struct yang_data *data, void *arg,
+				     char *errmsg, size_t errmsg_len)
 {
 	struct lyd_node *dnode = arg;
 	LY_ERR ly_errno;
@@ -377,7 +378,7 @@ static int frr_sr_state_data_iter_cb(const struct lysc_node *snode,
 	}
 
 	yang_data_free(data);
-	return NB_OK;
+	return NB_ITER_CONTINUE;
 }
 
 /* Callback for state retrieval. */
@@ -386,15 +387,19 @@ static int frr_sr_state_cb(sr_session_ctx_t *session, uint32_t sub_id,
 			   const char *request_xpath, uint32_t request_id,
 			   struct lyd_node **parent, void *private_ctx)
 {
+	struct nb_oper_data_iter_input iter_input = {};
+	struct nb_oper_data_iter_output iter_output = {};
 	struct lyd_node *dnode;
 
 	dnode = *parent;
-	if (nb_oper_data_iterate(request_xpath, NULL, 0,
-				 frr_sr_state_data_iter_cb, dnode)
-	    != NB_OK) {
++	iter_input.xpath = xpath;
++	iter_input.cb = frr_sr_state_data_iter_cb;
++	iter_input.cb_arg = dnode;
++	iter_input.flags = F_NB_OPER_DATA_ITER_NORECURSE;
++	if (nb_oper_data_iterate(&iter_input, &iter_output) == NB_ITER_ABORT) {
 		flog_warn(EC_LIB_NB_OPERATIONAL_DATA,
-			  "%s: failed to obtain operational data [xpath %s]",
-			  __func__, xpath);
++			  "%s: failed to fetch operational data: %s", __func__,
++			  iter_output.errmsg);
 		return SR_ERR_INTERNAL;
 	}
 

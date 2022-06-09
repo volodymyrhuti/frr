@@ -443,30 +443,62 @@ static struct lyd_node *get_dnode_config(const std::string &path)
 
 static int get_oper_data_cb(const struct lysc_node *snode,
 			    struct yang_translator *translator,
-			    struct yang_data *data, void *arg)
+			    struct yang_data *data, void *arg,
+			    char *errmsg, size_t errmsg_len)
 {
 	struct lyd_node *dnode = static_cast<struct lyd_node *>(arg);
-	int ret = yang_dnode_edit(dnode, data->xpath, data->value);
-	yang_data_free(data);
+	int ret = NB_ITER_CONTINUE;
 
-	return (ret == 0) ? NB_OK : NB_ERR;
+	int err = lyd_new_path(
+		dnode, ly_native_ctx, data->xpath, data->value,
+		LYD_NEW_PATH_UPDATE, &dnode);
+	if (!dnode && err) {
+		snprintf(errmsg, errmsg_len,
+			 "failed to create node \"%s\"", data->xpath);
+		ret = NB_ITER_ABORT;
+	}
+
+	yang_data_free(data);
+	return ret;
 }
 
-static struct lyd_node *get_dnode_state(const std::string &path)
+static struct lyd_node *get_dnode_state(const std::string &path,
+					const std::string &input_offset,
+					uint32_t chunk_size,
+					const char **output_offset)
 {
-	struct lyd_node *dnode = yang_dnode_new(ly_native_ctx, false);
-	if (nb_oper_data_iterate(path.c_str(), NULL, 0, get_oper_data_cb, dnode)
-	    != NB_OK) {
+	struct nb_oper_data_iter_input iter_input = {};
+	struct nb_oper_data_iter_output iter_output = {};
+	struct lyd_node *dnode;
+
+	dnode = yang_dnode_new(ly_native_ctx, false);
+	iter_input.xpath = path.c_str();
+	iter_input.cb = get_oper_data_cb;
+	iter_input.cb_arg = dnode;
+	iter_input.max_elements = chunk_size;
+	if (!input_offset.empty()) {
+		SET_FLAG(iter_input.flags, F_NB_OPER_DATA_ITER_OFFSET);
+		strlcpy(iter_input.offset_path, input_offset.c_str(),
+			sizeof(iter_input.offset_path));
+	}
+
+	int ret = nb_oper_data_iterate(&iter_input, &iter_output);
+	if (ret == NB_ITER_ABORT) {
 		yang_dnode_free(dnode);
 		return NULL;
 	}
+	if (ret == NB_ITER_SUSPEND)
+		*output_offset = iter_output.offset_path;
 
 	return dnode;
 }
 
+
 static grpc::Status get_path(frr::DataTree *dt, const std::string &path,
-			     int type, LYD_FORMAT lyd_format,
-			     bool with_defaults)
+			     const std::string &input_offset, int type,
+			     LYD_FORMAT lyd_format, bool with_defaults,
+			     uint32_t chunk_size,
+			     const char **output_offset)
 {
 	struct lyd_node *dnode_config = NULL;
 	struct lyd_node *dnode_state = NULL;
@@ -484,7 +516,8 @@ static grpc::Status get_path(frr::DataTree *dt, const std::string &path,
 	// Operational data.
 	if (type == frr::GetRequest_DataType_ALL
 	    || type == frr::GetRequest_DataType_STATE) {
-		dnode_state = get_dnode_state(path);
+		dnode_state = get_dnode_state(
+			path, input_offset, chunk_size, output_offset);
 		if (!dnode_state) {
 			if (dnode_config)
 				yang_dnode_free(dnode_config);
@@ -591,12 +624,14 @@ bool HandleStreamingGet(
 	grpc_debug("%s: entered", __func__);
 
 	auto mypathps = &tag->context;
+        std::string my_path = "";
 	if (tag->is_initial_process()) {
 		// Fill our context container first time through
 		grpc_debug("%s: initialize streaming state", __func__);
 		auto paths = tag->request.path();
 		for (const std::string &path : paths) {
 			mypathps->push_back(std::string(path));
+                        my_path += std::string(path);
 		}
 	}
 
@@ -606,11 +641,18 @@ bool HandleStreamingGet(
 	frr::Encoding encoding = tag->request.encoding();
 	// Request: bool with_defaults = 3;
 	bool with_defaults = tag->request.with_defaults();
+	// Request: string path = 4;
+	std::string path = my_path; // tag->request.path()[0];
+	// Request: string offset = 5;
+	std::string input_offset = tag->request.offset();
+	// Request: uint32 chunk_size = 6;
+	uint32_t chunk_size = tag->request.chunk_size();
 
-	if (mypathps->empty()) {
-		tag->async_responder.Finish(grpc::Status::OK, tag);
-		return false;
-	}
+
+	/* if (mypathps->empty()) { */
+	/* 	tag->async_responder.Finish(grpc::Status::OK, tag); */
+	/* 	return false; */
+	/* } */
 
 	frr::GetResponse response;
 	grpc::Status status;
@@ -619,10 +661,17 @@ bool HandleStreamingGet(
 	response.set_timestamp(time(NULL));
 
 	// Response: DataTree data = 2;
+	const char *output_offset = NULL;
 	auto *data = response.mutable_data();
 	data->set_encoding(tag->request.encoding());
-	status = get_path(data, mypathps->back().c_str(), type,
-			  encoding2lyd_format(encoding), with_defaults);
+	/* status = get_path(data, mypathps->back().c_str(), type, */
+	/* 		  encoding2lyd_format(encoding), with_defaults); */
+	status = get_path(data, path, input_offset, type,
+			  encoding2lyd_format(encoding),
+			  with_defaults, chunk_size,
+			  &output_offset);
+	if (output_offset)
+		response.set_offset(output_offset);
 
 	if (!status.ok()) {
 		tag->async_responder.WriteAndFinish(
@@ -636,7 +685,9 @@ bool HandleStreamingGet(
 			response, grpc::WriteOptions(), grpc::Status::OK, tag);
 		return false;
 	} else {
-		tag->async_responder.Write(response, tag);
+		tag->async_responder.WriteAndFinish(
+			response, grpc::WriteOptions(),
+			grpc::Status::OK, tag);
 		return true;
 	}
 }
