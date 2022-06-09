@@ -2118,7 +2118,7 @@ nb_oper_data_iterate_validate_input(struct nb_oper_data_iter_input *input,
 	nb_node = nb_node_find(input->xpath);
 	if (!nb_node) {
 		snprintf(output->errmsg, sizeof(output->errmsg),
-			 "unknown data path");
+			 "unknown data path (%s)", input->xpath);
 		return NB_ITER_ABORT;
 	}
 

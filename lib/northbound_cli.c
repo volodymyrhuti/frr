@@ -1466,9 +1466,11 @@ error:
 
 DEFPY (show_yang_operational_data,
        show_yang_operational_data_cmd,
-       "show yang operational-data XPATH$xpath\
+       "show yang operational-data \
          [{\
 	   format <json$json|xml$xml>\
+	   |next$next\
+	   |XPATH$xpath\
 	   |translate WORD$translator_family\
 	   |with-config$with_config\
 	   |max-elements (1-1000000)$max_elements [repeat$repeat]\
@@ -1485,7 +1487,8 @@ DEFPY (show_yang_operational_data,
        "Merge configuration data\n"
        "Maximum number of elements to fetch at once\n"
        "Maximum number of elements to fetch at once\n"
-       "Fetch all data using batches of the provided size\n")
+       "Fetch all data using batches of the provided size\n"
+       "Iterate on the previous fetch")
 {
 	struct nb_oper_data_iter_input iter_input = {};
 	struct nb_oper_data_iter_output iter_output = {};
@@ -1522,12 +1525,29 @@ DEFPY (show_yang_operational_data,
 	if (max_elements_str)
 		iter_input.max_elements = max_elements;
 
+	if (next) {
+		iter_input.flags = vty->iter_next.flags;
+		iter_input.max_elements = vty->iter_next.num_elements;
+		iter_input.xpath = vty->iter_next.xpath;
+		strlcpy(iter_input.offset_path, vty->iter_next.offset_path,
+			sizeof(iter_input.offset_path));
+	}
+
         int i = -1;
 	for (;;++i) {
 		ret = nb_oper_data_iterate(&iter_input, &iter_output);
-		if (!repeat || ret != NB_ITER_SUSPEND) {
+		if (!repeat) {
+			if (xpath)
+				strlcpy(vty->iter_next.xpath, xpath, XPATH_MAXLEN);
+			if (max_elements)
+				vty->iter_next.num_elements = max_elements;
+			vty->iter_next.flags = iter_input.flags;
+			SET_FLAG(vty->iter_next.flags, F_NB_OPER_DATA_ITER_OFFSET);
+			strlcpy(vty->iter_next.offset_path, iter_output.offset_path,
+				sizeof(vty->iter_next.offset_path));
+		}
+		if (!repeat || ret != NB_ITER_SUSPEND)
 			break;
-                }
 
 		SET_FLAG(iter_input.flags, F_NB_OPER_DATA_ITER_OFFSET);
 		strlcpy(iter_input.offset_path, iter_output.offset_path,
@@ -1551,7 +1571,9 @@ DEFPY (show_yang_operational_data,
 		}
 	}
 
+#if 0 // TODO: FIX
 	(void)lyd_validate_all(&dnode, ly_ctx, 0, NULL);
+#endif
 
 	/* Display the data. */
 	if (lyd_print_mem(&strp, dnode, format, print_options) != 0 || !strp) {

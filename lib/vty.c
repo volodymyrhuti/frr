@@ -1564,6 +1564,7 @@ struct vty *vty_new(void)
 	new->max = VTY_BUFSIZ;
 	new->pass_fd = -1;
 
+	memset(&new->iter_next, 0, sizeof(new->iter_next));
 	return new;
 }
 

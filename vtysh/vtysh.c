@@ -2951,9 +2951,11 @@ DEFUN_HIDDEN (show_config_running,
 
 DEFUN (show_yang_operational_data,
        show_yang_operational_data_cmd,
-       "show yang operational-data XPATH\
+       "show yang operational-data \
          [{\
 	   format <json|xml>\
+	   |next\
+	   |XPATH\
 	   |translate WORD\
 	   |with-config\
 	   |max-elements (1-1000000) [repeat]\
@@ -2971,6 +2973,7 @@ DEFUN (show_yang_operational_data,
        "Maximum number of elements to fetch at once\n"
        "Maximum number of elements to fetch at once\n"
        "Fetch all data using batches of the provided size\n"
+       "Iterate on the previous fetch\n"
        DAEMONS_STR)
 {
 	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text);

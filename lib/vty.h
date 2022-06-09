@@ -213,6 +213,9 @@ struct vty {
 	/* What address is this vty comming from. */
 	char address[SU_ADDRSTRLEN];
 
+	/* Saved iteration state */
+	struct nb_oper_data_iter_output iter_next;
+
 	/* "frame" output.  This is buffered and will be printed if some
 	 * actual output follows, or will be discarded if the frame ends
 	 * without any output. */

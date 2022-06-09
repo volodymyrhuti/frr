@@ -746,11 +746,19 @@ struct nb_oper_data_iter_output {
 	/* Number of retrieved elements. */
 	uint32_t num_elements;
 
+	/* Data path of the YANG data we want to iterate over. */
+	char xpath[XPATH_MAXLEN];
+
 	/* Offset where the iteration stopped. */
 	char offset_path[XPATH_MAXLEN];
 
 	/* Buffer to store human-readable error message in case of error. */
 	char errmsg[4096];
+
+	/*
+	 * F_NB_OPER_DATA_ITER_ flags to control how the iteration is performed.
+	 */
+	uint32_t flags;
 };
 
 /* Hooks. */
