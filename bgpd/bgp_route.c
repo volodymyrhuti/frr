@@ -31,6 +31,7 @@
 #include "stream.h"
 #include "filter.h"
 #include "log.h"
+#include "dscp.h"
 #include "routemap.h"
 #include "buffer.h"
 #include "sockunion.h"
@@ -10270,7 +10271,7 @@ void route_vty_out_detail(struct vty *vty, struct bgp *bgp, struct bgp_dest *bn,
 	json_object *json_peer = NULL;
 	json_object *json_string = NULL;
 	json_object *json_adv_to = NULL;
-	int first = 0;
+	int first = 0, dscp = attr->dscp >> 2;
 	struct listnode *node, *nnode;
 	struct peer *peer;
 	bool addpath_capable;
@@ -10939,6 +10940,15 @@ void route_vty_out_detail(struct vty *vty, struct bgp *bgp, struct bgp_dest *bn,
 				bgp_attr_get_community(attr)->str);
 		}
 	}
+	/* XXX: on Cisco
+	 * R1# sh ip cef 5.5.0.0 de
+	 * 5.5.0.0/24, epoch 0
+	 *     QOS: Precedence critical (5)
+	 *     recursive via ...
+	 *           nexthop ... iface */
+	if (dscp)
+		vty_out(vty, "      QOS: Precedence %s (%d)\n",
+			dscp_enum_str(dscp), dscp);
 
 	/* Line 5 display Extended-community */
 	if (attr->flag & ATTR_FLAG_BIT(BGP_ATTR_EXT_COMMUNITIES)) {

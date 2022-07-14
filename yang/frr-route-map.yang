@@ -165,6 +165,12 @@ module frr-route-map {
       "Set tag";
   }
 
+  identity set-dscp {
+    base rmap-set-type;
+    description
+      "Set dscp";
+  }
+
   identity set-sr-te-color {
     base rmap-set-type;
     description
@@ -353,6 +359,15 @@ module frr-route-map {
             }
             description
               "Tag value";
+          }
+        }
+
+        case set-dscp {
+          when "derived-from-or-self(../action, 'set-dscp')";
+          leaf dscp {
+            type string;
+            description
+              "Dscp value";
           }
         }
 
