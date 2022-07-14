@@ -4063,6 +4063,7 @@ struct route_entry *zebra_rib_route_entry_new(vrf_id_t vrf_id, int type,
 	re->uptime = monotime(NULL);
 	re->tag = tag;
 	re->nhe_id = nhe_id;
+	re->dscp = 0;
 
 	return re;
 }
