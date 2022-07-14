@@ -425,6 +425,24 @@ void route_map_no_set_tag_hook(int (*func)(struct route_map_index *index,
 	rmap_match_set_hook.no_set_tag = func;
 }
 
+/* set dscp */
+void route_map_set_dscp_hook(int (*func)(struct route_map_index *index,
+					 const char *command, const char *arg,
+					 char *errmsg, size_t errmsg_len))
+{
+
+	rmap_match_set_hook.set_dscp = func;
+}
+
+/* no set dscp */
+void route_map_no_set_dscp_hook(int (*func)(struct route_map_index *index,
+					    const char *command,
+					    const char *arg,
+					    char *errmsg, size_t errmsg_len))
+{
+	rmap_match_set_hook.no_set_dscp = func;
+}
+
 int generic_match_add(struct route_map_index *index,
 		      const char *command, const char *arg,
 		      route_map_event_t type,
@@ -3209,6 +3227,163 @@ void *route_map_rule_tag_compile(const char *arg)
 	*tag = tmp;
 
 	return tag;
+}
+
+/* Decodes a standardized DSCP into its representative value */
+uint8_t route_map_decode_dscp_enum(const char *name)
+{
+	/* Standard Differentiated Services Field Codepoints */
+	if (!strcmp(name, "cs0"))
+		return 0;
+	if (!strcmp(name, "cs1"))
+		return 8;
+	if (!strcmp(name, "cs2"))
+		return 16;
+	if (!strcmp(name, "cs3"))
+		return 24;
+	if (!strcmp(name, "cs4"))
+		return 32;
+	if (!strcmp(name, "cs5"))
+		return 40;
+	if (!strcmp(name, "cs6"))
+		return 48;
+	if (!strcmp(name, "cs7"))
+		return 56;
+	if (!strcmp(name, "af11"))
+		return 10;
+	if (!strcmp(name, "af12"))
+		return 12;
+	if (!strcmp(name, "af13"))
+		return 14;
+	if (!strcmp(name, "af21"))
+		return 18;
+	if (!strcmp(name, "af22"))
+		return 20;
+	if (!strcmp(name, "af23"))
+		return 22;
+	if (!strcmp(name, "af31"))
+		return 26;
+	if (!strcmp(name, "af32"))
+		return 28;
+	if (!strcmp(name, "af33"))
+		return 30;
+	if (!strcmp(name, "af41"))
+		return 34;
+	if (!strcmp(name, "af42"))
+		return 36;
+	if (!strcmp(name, "af43"))
+		return 38;
+	if (!strcmp(name, "ef"))
+		return 46;
+	if (!strcmp(name, "voice-admit"))
+		return 44;
+
+	/* No match? Error out */
+	return -1;
+}
+
+const char *route_map_dscp_enum_str(int dscp)
+{
+	/* Standard Differentiated Services Field Codepoints */
+	switch (dscp) {
+	case 0:
+		return "cs0";
+	case 8:
+		return "cs1";
+	case 16:
+		return "cs2";
+	case 24:
+		return "cs3";
+	case 32:
+		return "cs4";
+	case 40:
+		return "cs5";
+	case 48:
+		return "cs6";
+	case 56:
+		return "cs7";
+	case 10:
+		return "af11";
+	case 12:
+		return "af12";
+	case 14:
+		return "af13";
+	case 18:
+		return "af21";
+	case 20:
+		return "af22";
+	case 22:
+		return "af23";
+	case 26:
+		return "af31";
+	case 28:
+		return "af32";
+	case 30:
+		return "af33";
+	case 34:
+		return "af41";
+	case 36:
+		return "af42";
+	case 38:
+		return "af43";
+	case 46:
+		return "ef";
+	case 44:
+		return "voice-admit";
+	default:
+		return NULL;
+        }
+}
+
+#define PBR_DSFIELD_DSCP (0xfc) /* Upper 6 bits of DS field: DSCP */
+/* Discriminate dscp enums (cs0, cs1 etc.) and numbers */
+void *route_map_rule_dscp_compile(const char *dscp)
+{
+	char dscpname[100];
+	bool isANumber = true;
+	uint8_t *rawDscp, tmpDscp;
+
+	for (int i = 0; i < (int)strlen(dscp); i++) {
+		/* Letters are not numbers */
+		if (!isdigit(dscp[i]))
+			isANumber = false;
+
+		/* Lowercase the dscp enum (if needed) */
+		if (isupper(dscp[i]))
+			dscpname[i] = tolower(dscp[i]);
+		else
+			dscpname[i] = dscp[i];
+	}
+	dscpname[strlen(dscp)] = '\0';
+
+	if (isANumber) {
+		/* dscp passed is a regular number */
+		long dscpAsNum = strtol(dscp, NULL, 0);
+		if (dscpAsNum > PBR_DSFIELD_DSCP >> 2) {
+			zlog_debug("dscp (%s) must be less than 64\n", dscp);
+			return NULL;
+		}
+
+		rawDscp = XMALLOC(MTYPE_ROUTE_MAP_COMPILED, sizeof(*rawDscp));
+		*rawDscp = dscpAsNum;
+	} else {
+		/* check dscp if it is an enum like cs0 */
+		tmpDscp = route_map_decode_dscp_enum(dscpname);
+		if (tmpDscp > PBR_DSFIELD_DSCP) {
+			zlog_debug("Invalid dscp value: %s\n", dscpname);
+			return NULL;
+		}
+		rawDscp = XMALLOC(MTYPE_ROUTE_MAP_COMPILED, sizeof(*rawDscp));
+		*rawDscp = tmpDscp;
+	}
+
+	*rawDscp = (*rawDscp << 2);
+	return rawDscp;
+}
+
+void route_map_rule_dscp_free(void *rule)
+{
+	XFREE(MTYPE_ROUTE_MAP_COMPILED, rule);
 }
 
 void route_map_rule_tag_free(void *rule)

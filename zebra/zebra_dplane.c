@@ -125,6 +125,9 @@ struct dplane_route_info {
 	uint32_t zd_metric;
 	uint32_t zd_old_metric;
 
+	uint32_t zd_dscp;
+	uint32_t zd_old_dscp;
+
 	uint16_t zd_instance;
 	uint16_t zd_old_instance;
 
@@ -1382,6 +1385,21 @@ uint32_t dplane_ctx_get_old_metric(const struct zebra_dplane_ctx *ctx)
 	return ctx->u.rinfo.zd_old_metric;
 }
 
+
+uint32_t dplane_ctx_get_dscp(const struct zebra_dplane_ctx *ctx)
+{
+	DPLANE_CTX_VALID(ctx);
+
+	return ctx->u.rinfo.zd_dscp;
+}
+
+uint32_t dplane_ctx_get_old_dscp(const struct zebra_dplane_ctx *ctx)
+{
+	DPLANE_CTX_VALID(ctx);
+
+	return ctx->u.rinfo.zd_old_dscp;
+}
+
 uint32_t dplane_ctx_get_mtu(const struct zebra_dplane_ctx *ctx)
 {
 	DPLANE_CTX_VALID(ctx);
@@ -2575,6 +2593,8 @@ int dplane_ctx_route_init(struct zebra_dplane_ctx *ctx, enum dplane_op_e op,
 
 	ctx->u.rinfo.zd_metric = re->metric;
 	ctx->u.rinfo.zd_old_metric = re->metric;
+	ctx->u.rinfo.zd_dscp = re->dscp;
+	ctx->u.rinfo.zd_old_dscp = re->dscp;
 	ctx->zd_vrf_id = re->vrf_id;
 	ctx->u.rinfo.zd_mtu = re->mtu;
 	ctx->u.rinfo.zd_nexthop_mtu = re->nexthop_mtu;
@@ -3332,6 +3352,7 @@ dplane_route_update_internal(struct route_node *rn,
 			ctx->u.rinfo.zd_old_instance = old_re->instance;
 			ctx->u.rinfo.zd_old_distance = old_re->distance;
 			ctx->u.rinfo.zd_old_metric = old_re->metric;
+			ctx->u.rinfo.zd_old_dscp = old_re->dscp;
 			ctx->u.rinfo.nhe.old_id = old_re->nhe->id;
 
 #ifndef HAVE_NETLINK

@@ -3837,6 +3837,7 @@ int rib_add(afi_t afi, safi_t safi, vrf_id_t vrf_id, int type,
 	struct route_entry *re = NULL;
 	struct nexthop *nexthop = NULL;
 	struct nexthop_group *ng = NULL;
+	int dscp = 0;
 
 	/* Allocate new route_entry structure. */
 	re = XCALLOC(MTYPE_RE, sizeof(struct route_entry));
@@ -3851,6 +3852,7 @@ int rib_add(afi_t afi, safi_t safi, vrf_id_t vrf_id, int type,
 	re->uptime = monotime(NULL);
 	re->tag = tag;
 	re->nhe_id = nhe_id;
+	re->dscp = dscp;
 
 	/* If the owner of the route supplies a shared nexthop-group id,
 	 * we'll use that. Otherwise, pass the nexthop along directly.

@@ -372,6 +372,8 @@ void dplane_ctx_set_instance(struct zebra_dplane_ctx *ctx, uint16_t instance);
 uint16_t dplane_ctx_get_old_instance(const struct zebra_dplane_ctx *ctx);
 uint32_t dplane_ctx_get_metric(const struct zebra_dplane_ctx *ctx);
 uint32_t dplane_ctx_get_old_metric(const struct zebra_dplane_ctx *ctx);
+uint32_t dplane_ctx_get_dscp(const struct zebra_dplane_ctx *ctx);
+uint32_t dplane_ctx_get_old_dscp(const struct zebra_dplane_ctx *ctx);
 uint32_t dplane_ctx_get_mtu(const struct zebra_dplane_ctx *ctx);
 uint32_t dplane_ctx_get_nh_mtu(const struct zebra_dplane_ctx *ctx);
 uint8_t dplane_ctx_get_distance(const struct zebra_dplane_ctx *ctx);

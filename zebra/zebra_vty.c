@@ -597,6 +597,16 @@ static void vty_show_ip_route_detail(struct vty *vty, struct route_node *rn,
 	}
 }
 
+static char *my_itoa(int num, char *str)
+{
+        if(str == NULL)
+        {
+                return NULL;
+        }
+        sprintf(str, "%d", num);
+        return str;
+}
+
 /*
  * Helper for nexthop output, used in the 'show ip route' path
  */
@@ -604,6 +614,7 @@ static void show_route_nexthop_helper(struct vty *vty,
 				      const struct route_entry *re,
 				      const struct nexthop *nexthop)
 {
+	const char *dscp_name  = route_map_dscp_enum_str(re->dscp >> 2);
 	char buf[MPLS_LABEL_STRLEN];
 	int i;
 
@@ -712,6 +723,12 @@ static void show_route_nexthop_helper(struct vty *vty,
 
 	if (nexthop->weight)
 		vty_out(vty, ", weight %u", nexthop->weight);
+
+	if (dscp_name)
+		memcpy(buf, dscp_name, sizeof(buf));
+	else
+		my_itoa(re->dscp >> 2, buf);
+	vty_out(vty, ", dscp %s", buf);
 
 	if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_HAS_BACKUP)) {
 		vty_out(vty, ", backup %d", nexthop->backup_idx[0]);
