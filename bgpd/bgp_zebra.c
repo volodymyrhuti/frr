@@ -1308,6 +1308,7 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 	uint32_t ttl = 0;
 	uint32_t bos = 0;
 	uint32_t exp = 0;
+	uint8_t dscp;
 
 	/* Don't try to install if we're not connected to Zebra or Zebra doesn't
 	 * know of this instance.
@@ -1349,6 +1350,7 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 	}
 
 	tag = info->attr->tag;
+	dscp = info->attr->dscp;
 
 	if (peer->sort == BGP_PEER_IBGP || peer->sort == BGP_PEER_CONFED
 	    || info->sub_type == BGP_ROUTE_AGGREGATE) {
@@ -1449,11 +1451,16 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 						 p, mpinfo_cp))
 				continue;
 
-			/* metric/tag is only allowed to be
+			/* metric/tag/dscp (XXX) is only allowed to be
 			 * overridden on 1st nexthop */
 			if (mpinfo == info) {
 				metric = mpinfo_cp->attr->med;
 				tag = mpinfo_cp->attr->tag;
+				/* used by hook from the QPPB plugin */
+				dscp = mpinfo_cp->attr->dscp;
+				/* expose value back to CLI `show bgp ipv4 nh`
+				 * displayed by route_vty_out_detail()` */
+				mpinfo->attr->dscp = dscp;
 			}
 		}
 

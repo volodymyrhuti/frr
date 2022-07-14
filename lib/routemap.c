@@ -20,6 +20,7 @@
 #include "table.h"
 #include "json.h"
 #include "jhash.h"
+#include "dscp.h"
 
 #include "lib/routemap_clippy.c"
 
@@ -410,6 +411,24 @@ void route_map_no_set_tag_hook(int (*func)(struct route_map_index *index,
 					   char *errmsg, size_t errmsg_len))
 {
 	rmap_match_set_hook.no_set_tag = func;
+}
+
+/* set dscp */
+void route_map_set_dscp_hook(int (*func)(struct route_map_index *index,
+					 const char *command, const char *arg,
+					 char *errmsg, size_t errmsg_len))
+{
+
+	rmap_match_set_hook.set_dscp = func;
+}
+
+/* no set dscp */
+void route_map_no_set_dscp_hook(int (*func)(struct route_map_index *index,
+					    const char *command,
+					    const char *arg, char *errmsg,
+					    size_t errmsg_len))
+{
+	rmap_match_set_hook.no_set_dscp = func;
 }
 
 int generic_match_add(struct route_map_index *index,
@@ -3221,6 +3240,28 @@ void *route_map_rule_tag_compile(const char *arg)
 	*tag = tmp;
 
 	return tag;
+}
+
+
+void *route_map_rule_dscp_compile(const char *dscp)
+{
+	uint8_t *rawDscp, dscpVal;
+	char err_msg[100];
+
+	dscpVal = dscp_decode(dscp, err_msg, sizeof(err_msg));
+	if (dscpVal == DSCP_ERR) {
+		zlog_err("%s", err_msg);
+		return NULL;
+	}
+
+	rawDscp = XMALLOC(MTYPE_ROUTE_MAP_COMPILED, sizeof(*rawDscp));
+	*rawDscp = (dscpVal << 2);
+	return rawDscp;
+}
+
+void route_map_rule_dscp_free(void *rule)
+{
+	XFREE(MTYPE_ROUTE_MAP_COMPILED, rule);
 }
 
 void route_map_rule_tag_free(void *rule)
