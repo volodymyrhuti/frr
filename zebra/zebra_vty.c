@@ -28,6 +28,7 @@
 #include "rib.h"
 #include "nexthop.h"
 #include "vrf.h"
+#include "dscp.h"
 #include "linklist.h"
 #include "mpls.h"
 #include "routemap.h"
@@ -604,6 +605,7 @@ static void show_route_nexthop_helper(struct vty *vty,
 				      const struct route_entry *re,
 				      const struct nexthop *nexthop)
 {
+	const char *dscp_name = dscp_enum_str(re->dscp >> 2);
 	char buf[MPLS_LABEL_STRLEN];
 	int i;
 
@@ -712,6 +714,13 @@ static void show_route_nexthop_helper(struct vty *vty,
 
 	if (nexthop->weight)
 		vty_out(vty, ", weight %u", nexthop->weight);
+
+	if (re->dscp) {
+		if (dscp_name)
+			vty_out(vty, ", dscp %s", dscp_name);
+		else
+			vty_out(vty, ", dscp %u", re->dscp >> 2);
+	}
 
 	if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_HAS_BACKUP)) {
 		vty_out(vty, ", backup %d", nexthop->backup_idx[0]);

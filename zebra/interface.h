@@ -109,6 +109,14 @@ enum zebra_if_flags {
 	ZIF_FLAG_LACP_BYPASS = (1 << 5)
 };
 
+/* Maps onto net.ipv4.conf.*.qppb_mode  */
+enum zebra_if_bgp_policy {
+	ZIF_FLAG_BGP_POLICY_NONE = 0,
+	ZIF_FLAG_BGP_POLICY_DST = 1,
+	ZIF_FLAG_BGP_POLICY_SRC = 2,
+	ZIF_FLAG_BGP_POLICY_MAX
+};
+
 #define ZEBRA_IF_IS_PROTODOWN(zif) ((zif)->flags & ZIF_FLAG_PROTODOWN)
 #define ZEBRA_IF_IS_PROTODOWN_ONLY_EXTERNAL(zif)                               \
 	((zif)->protodown_rc == ZEBRA_PROTODOWN_EXTERNAL)

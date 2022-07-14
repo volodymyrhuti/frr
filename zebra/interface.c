@@ -33,6 +33,7 @@
 #include "log.h"
 #include "zclient.h"
 #include "vrf.h"
+#include "privs.h"
 
 #include "zebra/rtadv.h"
 #include "zebra_ns.h"
@@ -2895,6 +2896,88 @@ DEFUN (show_interface_desc_vrf_all,
 	return CMD_SUCCESS;
 }
 
+extern struct zebra_privs_t zserv_privs;
+static const char proc_qppb_path[] = "/proc/sys/net/ipv4/conf/%s/qppb_mode";
+static int if_qppb_mode_set(const char *name, int mode)
+{
+	char proc_path[128];
+	FILE *fp;
+
+	sprintf(proc_path, proc_qppb_path, name);
+	frr_with_privs(&zserv_privs) {
+		fp = fopen(proc_path, "w");
+		if (fp == NULL)
+			return -1;
+
+		fprintf(fp, "%d\n", mode);
+		fclose(fp);
+	}
+
+	return 0;
+}
+
+static int if_qppb_enable(struct interface *ifp, enum zebra_if_bgp_policy policy)
+{
+	switch (policy) {
+	case ZIF_FLAG_BGP_POLICY_NONE:
+	case ZIF_FLAG_BGP_POLICY_DST:
+	case ZIF_FLAG_BGP_POLICY_SRC:
+		return if_qppb_mode_set(ifp->name, policy);
+	default:
+		zlog_debug("QPPB enable failed, invalid policy [%s - %d]",
+			ifp->name, policy);
+		return -1;
+	}
+}
+
+DEFUN (bgp_policy,
+       bgp_policy_cmd,
+       "bgp-policy <source|destination>",
+       "Set QPPB mode for the interface\n"
+       "Perform table lookup on the packets' source address\n"
+       "Perform table lookup on the packets' destination address\n")
+{
+	VTY_DECLVAR_CONTEXT(interface, ifp);
+	enum zebra_if_bgp_policy bgp_policy;
+	char *mode = argv[1]->text;
+	int err;
+
+	if (strmatch(mode, "destination"))
+		bgp_policy = ZIF_FLAG_BGP_POLICY_DST;
+	else if (strmatch(mode, "source"))
+		bgp_policy = ZIF_FLAG_BGP_POLICY_SRC;
+	else {
+		vty_out(vty, "Invalid mode specified - %s\n", mode);
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
+	err = if_qppb_enable(ifp, bgp_policy);
+	if (err) {
+		vty_out(vty, "Failed to set the mode - %s\n", mode);
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN (no_bgp_policy,
+       no_bgp_policy_cmd,
+       "no bgp-policy",
+       NO_STR
+       "Unset bgp-policy flag to interface\n")
+{
+	VTY_DECLVAR_CONTEXT(interface, ifp);
+	int err;
+
+	err = if_qppb_enable(ifp, ZIF_FLAG_BGP_POLICY_NONE);
+	if (err) {
+		vty_out(vty, "Failed to unset QPPB mode\n");
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
+	return CMD_SUCCESS;
+}
+
 int if_multicast_set(struct interface *ifp)
 {
 	struct zebra_if *if_data;
@@ -4617,6 +4700,8 @@ void zebra_if_init(void)
 	install_element(ENABLE_NODE, &show_interface_desc_vrf_all_cmd);
 	install_element(INTERFACE_NODE, &multicast_cmd);
 	install_element(INTERFACE_NODE, &no_multicast_cmd);
+	install_element(INTERFACE_NODE, &bgp_policy_cmd);
+	install_element(INTERFACE_NODE, &no_bgp_policy_cmd);
 	install_element(INTERFACE_NODE, &linkdetect_cmd);
 	install_element(INTERFACE_NODE, &no_linkdetect_cmd);
 	install_element(INTERFACE_NODE, &shutdown_if_cmd);

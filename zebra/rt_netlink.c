@@ -714,6 +714,7 @@ static int netlink_route_change_read_unicast(struct nlmsghdr *h, ns_id_t ns_id,
 	uint8_t distance = 0;
 	route_tag_t tag = 0;
 	uint32_t nhe_id = 0;
+	uint8_t dscp = 0;
 
 	void *dest = NULL;
 	void *gate = NULL;
@@ -802,6 +803,12 @@ static int netlink_route_change_read_unicast(struct nlmsghdr *h, ns_id_t ns_id,
 		flags |= ZEBRA_FLAG_OFFLOADED;
 	if (rtm->rtm_flags & RTM_F_OFFLOAD_FAILED)
 		flags |= ZEBRA_FLAG_OFFLOAD_FAILED;
+#if 0
+	if (rtm->rtm_flags & RTM_F_DSCP) {
+		dscp = rtm->rtm_tos;
+		zlog_debug("DSCP DETECTED %d", dscp);
+	}
+#endif
 
 	/* Route which inserted by Zebra. */
 	if (selfroute) {
@@ -967,6 +974,7 @@ static int netlink_route_change_read_unicast(struct nlmsghdr *h, ns_id_t ns_id,
 			re->uptime = monotime(NULL);
 			re->tag = tag;
 			re->nhe_id = nhe_id;
+			re->dscp = dscp;
 
 			if (!nhe_id) {
 				uint8_t nhop_num;
@@ -2022,6 +2030,9 @@ ssize_t netlink_route_multipath_msg_encode(int cmd,
 	req->r.rtm_dst_len = p->prefixlen;
 	req->r.rtm_src_len = src_p ? src_p->prefixlen : 0;
 	req->r.rtm_scope = RT_SCOPE_UNIVERSE;
+	req->r.rtm_tos = dplane_ctx_get_dscp(ctx);
+	if (req->r.rtm_tos)
+		req->r.rtm_flags |= RTM_F_DSCP;
 
 	if (cmd == RTM_DELROUTE)
 		req->r.rtm_protocol = zebra2proto(dplane_ctx_get_old_type(ctx));

@@ -100,10 +100,7 @@ uint8_t dscp_decode_enum(const char *name)
 
 const char *dscp_enum_str(int dscp)
 {
-	if (dscp >= DSCP_MAX)
-		return NULL;
-
-	return dscp_int_enum_map[dscp];
+	return (dscp < DSCP_MAX) ? dscp_int_enum_map[dscp] : NULL;
 }
 
 uint8_t dscp_decode(const char *dscp, struct vty *vty)

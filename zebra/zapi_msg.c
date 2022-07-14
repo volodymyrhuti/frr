@@ -631,6 +631,8 @@ int zsend_redistribute_route(int cmd, struct zserv *client,
 	api.distance = re->distance;
 	SET_FLAG(api.message, ZAPI_MESSAGE_METRIC);
 	api.metric = re->metric;
+	SET_FLAG(api.message, ZAPI_MESSAGE_DSCP);
+	api.dscp = re->dscp;
 	if (re->tag) {
 		SET_FLAG(api.message, ZAPI_MESSAGE_TAG);
 		api.tag = re->tag;
@@ -2113,6 +2115,9 @@ static void zread_route_add(ZAPI_HANDLER_ARGS)
 		re->tag = api.tag;
 	if (CHECK_FLAG(api.message, ZAPI_MESSAGE_MTU))
 		re->mtu = api.mtu;
+	if (CHECK_FLAG(api.message, ZAPI_MESSAGE_DSCP))
+		re->dscp = api.dscp;
+
 
 	if (CHECK_FLAG(api.message, ZAPI_MESSAGE_OPAQUE)) {
 		re->opaque =
