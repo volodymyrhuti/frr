@@ -563,6 +563,8 @@ struct zapi_route {
 
 	uint32_t metric;
 
+	uint32_t dscp;
+
 	route_tag_t tag;
 
 	uint32_t mtu;

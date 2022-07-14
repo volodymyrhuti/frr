@@ -33,6 +33,7 @@
 #include "log.h"
 #include "zclient.h"
 #include "vrf.h"
+#include "privs.h"
 
 #include "zebra/rtadv.h"
 #include "zebra_ns.h"
