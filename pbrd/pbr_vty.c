@@ -30,6 +30,7 @@
 #include "json.h"
 #include "debug.h"
 #include "pbr.h"
+#include "dscp.h"
 
 #include "pbrd/pbr_nht.h"
 #include "pbrd/pbr_map.h"
@@ -284,55 +285,21 @@ DEFPY(pbr_map_match_dscp, pbr_map_match_dscp_cmd,
       "DSCP value (below 64) or standard codepoint name\n")
 {
 	struct pbr_map_sequence *pbrms = VTY_GET_CONTEXT(pbr_map_sequence);
+	uint8_t rawDscp = dscp_decode(dscp, vty);
 	char dscpname[100];
-	uint8_t rawDscp;
 
-	if (!pbrms)
+	if (!pbrms || rawDscp == DSCP_ERR)
 		return CMD_WARNING_CONFIG_FAILED;
 
-	/* Discriminate dscp enums (cs0, cs1 etc.) and numbers */
-	bool isANumber = true;
-	for (int i = 0; i < (int)strlen(dscp); i++) {
-		/* Letters are not numbers */
-		if (!isdigit(dscp[i]))
-			isANumber = false;
-
-		/* Lowercase the dscp enum (if needed) */
-		if (isupper(dscp[i]))
-			dscpname[i] = tolower(dscp[i]);
-		else
-			dscpname[i] = dscp[i];
-	}
-	dscpname[strlen(dscp)] = '\0';
-
-	if (isANumber) {
-		/* dscp passed is a regular number */
-		long dscpAsNum = strtol(dscp, NULL, 0);
-
-		if (dscpAsNum > PBR_DSFIELD_DSCP >> 2) {
-			/* Refuse to install on overflow */
-			vty_out(vty, "dscp (%s) must be less than 64\n", dscp);
-			return CMD_WARNING_CONFIG_FAILED;
-		}
-		rawDscp = dscpAsNum;
-	} else {
-		/* check dscp if it is an enum like cs0 */
-		rawDscp = pbr_map_decode_dscp_enum(dscpname);
-		if (rawDscp > PBR_DSFIELD_DSCP) {
-			vty_out(vty, "Invalid dscp value: %s\n", dscpname);
-			return CMD_WARNING_CONFIG_FAILED;
-		}
-	}
-
 	if (!no) {
-		if (((pbrms->dsfield & PBR_DSFIELD_DSCP) >> 2) == rawDscp)
+		if (((pbrms->dsfield & DSFIELD_DSCP) >> 2) == rawDscp)
 			return CMD_SUCCESS;
 
 		/* Set the DSCP bits of the DSField */
 		pbrms->dsfield =
-			(pbrms->dsfield & ~PBR_DSFIELD_DSCP) | (rawDscp << 2);
+			(pbrms->dsfield & ~DSFIELD_DSCP) | (rawDscp << 2);
 	} else {
-		pbrms->dsfield &= ~PBR_DSFIELD_DSCP;
+		pbrms->dsfield &= ~DSFIELD_DSCP;
 	}
 
 	pbr_map_check(pbrms, true);
@@ -353,13 +320,13 @@ DEFPY(pbr_map_match_ecn, pbr_map_match_ecn_cmd,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	if (!no) {
-		if ((pbrms->dsfield & PBR_DSFIELD_ECN) == ecn)
+		if ((pbrms->dsfield & DSFIELD_ECN) == ecn)
 			return CMD_SUCCESS;
 
 		/* Set the ECN bits of the DSField */
-		pbrms->dsfield = (pbrms->dsfield & ~PBR_DSFIELD_ECN) | ecn;
+		pbrms->dsfield = (pbrms->dsfield & ~DSFIELD_ECN) | ecn;
 	} else {
-		pbrms->dsfield &= ~PBR_DSFIELD_ECN;
+		pbrms->dsfield &= ~DSFIELD_ECN;
 	}
 
 	pbr_map_check(pbrms, true);
@@ -907,12 +874,12 @@ static void vty_show_pbrms(struct vty *vty,
 		vty_out(vty, "        SRC Port Match: %u\n", pbrms->src_prt);
 	if (pbrms->dst_prt)
 		vty_out(vty, "        DST Port Match: %u\n", pbrms->dst_prt);
-	if (pbrms->dsfield & PBR_DSFIELD_DSCP)
+	if (pbrms->dsfield & DSFIELD_DSCP)
 		vty_out(vty, "        DSCP Match: %u\n",
-			(pbrms->dsfield & PBR_DSFIELD_DSCP) >> 2);
-	if (pbrms->dsfield & PBR_DSFIELD_ECN)
+			(pbrms->dsfield & DSFIELD_DSCP) >> 2);
+	if (pbrms->dsfield & DSFIELD_ECN)
 		vty_out(vty, "        ECN Match: %u\n",
-			pbrms->dsfield & PBR_DSFIELD_ECN);
+			pbrms->dsfield & DSFIELD_ECN);
 	if (pbrms->mark)
 		vty_out(vty, "        MARK Match: %u\n", pbrms->mark);
 
@@ -1014,12 +981,12 @@ static void vty_json_pbrms(json_object *j, struct vty *vty,
 		json_object_string_addf(jpbrm, "matchDst", "%pFX", pbrms->dst);
 	if (pbrms->mark)
 		json_object_int_add(jpbrm, "matchMark", pbrms->mark);
-	if (pbrms->dsfield & PBR_DSFIELD_DSCP)
+	if (pbrms->dsfield & DSFIELD_DSCP)
 		json_object_int_add(jpbrm, "matchDscp",
-				    (pbrms->dsfield & PBR_DSFIELD_DSCP) >> 2);
-	if (pbrms->dsfield & PBR_DSFIELD_ECN)
+				    (pbrms->dsfield & DSFIELD_DSCP) >> 2);
+	if (pbrms->dsfield & DSFIELD_ECN)
 		json_object_int_add(jpbrm, "matchEcn",
-				    pbrms->dsfield & PBR_DSFIELD_ECN);
+				    pbrms->dsfield & DSFIELD_ECN);
 
 	json_object_array_add(j, jpbrm);
 }
@@ -1304,13 +1271,13 @@ static int pbr_vty_map_config_write_sequence(struct vty *vty,
 		vty_out(vty, " match ip-protocol %s\n", p->p_name);
 	}
 
-	if (pbrms->dsfield & PBR_DSFIELD_DSCP)
+	if (pbrms->dsfield & DSFIELD_DSCP)
 		vty_out(vty, " match dscp %u\n",
-			(pbrms->dsfield & PBR_DSFIELD_DSCP) >> 2);
+			(pbrms->dsfield & DSFIELD_DSCP) >> 2);
 
-	if (pbrms->dsfield & PBR_DSFIELD_ECN)
+	if (pbrms->dsfield & DSFIELD_ECN)
 		vty_out(vty, " match ecn %u\n",
-			pbrms->dsfield & PBR_DSFIELD_ECN);
+			pbrms->dsfield & DSFIELD_ECN);
 
 	if (pbrms->mark)
 		vty_out(vty, " match mark %u\n", pbrms->mark);

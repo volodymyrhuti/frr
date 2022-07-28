@@ -52,9 +52,6 @@ struct pbr_filter {
 #define PBR_FILTER_DSFIELD		(1 << 8)
 #define PBR_FILTER_IP_PROTOCOL	(1 << 9)
 
-#define PBR_DSFIELD_DSCP (0xfc) /* Upper 6 bits of DS field: DSCP */
-#define PBR_DSFIELD_ECN (0x03)	/* Lower 2 bits of DS field: BCN */
-
 	/* Source and Destination IP address with masks. */
 	struct prefix src_ip;
 	struct prefix dst_ip;
