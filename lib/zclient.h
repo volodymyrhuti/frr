@@ -389,7 +389,7 @@ extern int zclient_bfd_session_update(ZAPI_CALLBACK_ARGS);
 #define ZAPI_MESSAGE_TABLEID 0x0100
 #define ZAPI_MESSAGE_SRTE 0x0200
 #define ZAPI_MESSAGE_OPAQUE 0x0400
-#define ZAPI_MESSAGE_DSCP 0x0800
+/* #define ZAPI_MESSAGE_DSCP 0x0800 */
 
 #define ZSERV_VERSION 6
 /* Zserv protocol message header */

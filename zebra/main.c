@@ -35,6 +35,7 @@
 #include "libfrr.h"
 #include "routemap.h"
 #include "routing_nb.h"
+#include "xdp.h"
 
 #include "zebra/zebra_router.h"
 #include "zebra/zebra_errors.h"
@@ -103,7 +104,7 @@ const struct option longopts[] = {
 	{0}};
 
 zebra_capabilities_t _caps_p[] = {ZCAP_NET_ADMIN, ZCAP_SYS_ADMIN,
-				  ZCAP_NET_RAW,
+				  ZCAP_NET_RAW, ZCAP_BPF,
 #ifdef HAVE_DPDK
 				  ZCAP_IPC_LOCK,  ZCAP_READ_SEARCH,
 				  ZCAP_SYS_RAWIO
@@ -471,6 +472,11 @@ int main(int argc, char **argv)
 
 	/* Error init */
 	zebra_error_init();
+
+        /* XDP library init */
+	/* frr_with_privs(&zserv_privs) { */
+            xdp_init();
+        /* } */
 
 	frr_run(zrouter.master);
 

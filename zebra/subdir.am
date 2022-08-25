@@ -50,8 +50,7 @@ endif
 man8 += $(MANBUILD)/frr-zebra.8
 ## endif ZEBRA
 endif
-
-zebra_zebra_LDADD = lib/libfrr.la $(LIBCAP) $(UST_LIBS)
+zebra_zebra_LDADD = lib/libfrr.la  $(LIBCAP) $(UST_LIBS) lib/libxdp.a -Llibbpf/src/ -l:libbpf.a
 if HAVE_PROTOBUF3
 zebra_zebra_LDADD += mlag/libmlag_pb.la $(PROTOBUF_C_LIBS)
 zebra/zebra_mlag.$(OBJEXT): mlag/mlag.pb-c.h

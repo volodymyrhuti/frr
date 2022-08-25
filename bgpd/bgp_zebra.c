@@ -34,6 +34,7 @@
 #include "lib/json.h"
 #include "lib/bfd.h"
 #include "lib/route_opaque.h"
+#include "lib/xdp.h"
 #include "filter.h"
 #include "mpls.h"
 #include "vxlan.h"
@@ -1559,10 +1560,10 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 
 	SET_FLAG(api.message, ZAPI_MESSAGE_METRIC);
 	api.metric = metric;
-	if (dscp) {
-		SET_FLAG(api.message, ZAPI_MESSAGE_DSCP);
-		api.dscp = dscp;
-	}
+	/* if (dscp) { */
+	/* 	SET_FLAG(api.message, ZAPI_MESSAGE_DSCP); */
+	/* 	api.dscp = dscp; */
+	/* } */
 
 	if (tag) {
 		SET_FLAG(api.message, ZAPI_MESSAGE_TAG);
@@ -1653,6 +1654,8 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 		zlog_debug("%s: %pFX: announcing to zebra (recursion %sset)",
 			   __func__, p, (recursion_flag ? "" : "NOT "));
 	}
+
+	xdp_qppb_prefix_mark(p, dscp, is_add);
 	zclient_route_send(is_add ? ZEBRA_ROUTE_ADD : ZEBRA_ROUTE_DELETE,
 			   zclient, &api);
 }

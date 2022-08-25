@@ -2,6 +2,14 @@
 # libfrr
 #
 
+noinst_LIBRARIES += lib/libxdp.a
+lib_libxdp_a_SOURCES = lib/xdp.c
+lib_libxdp_a_CPPFLAGS = $(AM_CPPFLAGS) -Wall -Ilibbpf/src/build/usr/include/
+
+# sbin_PROGRAMS += lib/xdp
+# lib_xdp_SOURCES = lib/xdp_prog_main.c
+# lib_xdp_LDADD = staticd/libstatic.a lib/libfrr.la lib/libxdp.a -Llibbpf/src/ -l:libbpf.a
+
 lib_LTLIBRARIES += lib/libfrr.la
 lib_libfrr_la_LDFLAGS = $(LIB_LDFLAGS) -version-info 0:0:0 -Xlinker -e_libfrr_version
 lib_libfrr_la_LIBADD = $(LIBCAP) $(UNWIND_LIBS) $(LIBYANG_LIBS) $(LUA_LIB) $(UST_LIBS) $(LIBCRYPT) $(LIBDL) $(LIBM)

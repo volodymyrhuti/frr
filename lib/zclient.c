@@ -1324,8 +1324,8 @@ int zapi_route_encode(uint8_t cmd, struct stream *s, struct zapi_route *api)
 		stream_putc(s, api->distance);
 	if (CHECK_FLAG(api->message, ZAPI_MESSAGE_METRIC))
 		stream_putl(s, api->metric);
-	if (CHECK_FLAG(api->message, ZAPI_MESSAGE_DSCP))
-		stream_putl(s, api->dscp);
+	/* if (CHECK_FLAG(api->message, ZAPI_MESSAGE_DSCP)) */
+	/* 	stream_putl(s, api->dscp); */
 	if (CHECK_FLAG(api->message, ZAPI_MESSAGE_TAG))
 		stream_putl(s, api->tag);
 	if (CHECK_FLAG(api->message, ZAPI_MESSAGE_MTU))
@@ -1569,8 +1569,8 @@ int zapi_route_decode(struct stream *s, struct zapi_route *api)
 		STREAM_GETC(s, api->distance);
 	if (CHECK_FLAG(api->message, ZAPI_MESSAGE_METRIC))
 		STREAM_GETL(s, api->metric);
-	if (CHECK_FLAG(api->message, ZAPI_MESSAGE_DSCP))
-		STREAM_GETL(s, api->dscp);
+	/* if (CHECK_FLAG(api->message, ZAPI_MESSAGE_DSCP)) */
+	/* 	STREAM_GETL(s, api->dscp); */
 	if (CHECK_FLAG(api->message, ZAPI_MESSAGE_TAG))
 		STREAM_GETL(s, api->tag);
 	if (CHECK_FLAG(api->message, ZAPI_MESSAGE_MTU))
