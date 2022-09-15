@@ -657,6 +657,8 @@ AC_ARG_ENABLE([bgp-bmp],
   AS_HELP_STRING([--disable-bgp-bmp],[turn off BGP BMP support]))
 AC_ARG_ENABLE([snmp],
   AS_HELP_STRING([--enable-snmp], [enable SNMP support for agentx]))
+AC_ARG_ENABLE([qppb],
+  AS_HELP_STRING([--enable-qppb], [enable QPPB support for BGP]))
 AC_ARG_ENABLE([config_rollbacks],
   AS_HELP_STRING([--enable-config-rollbacks], [enable configuration rollbacks (requires sqlite3)]))
 AC_ARG_ENABLE([confd],
@@ -1956,6 +1958,13 @@ if test "$enable_config_rollbacks" = "yes"; then
 fi
 
 dnl ---------------
+dnl configuration QPPB
+dnl ---------------
+if test "$enable_qppb" = "yes"; then
+    QPPB=true
+fi
+
+dnl ---------------
 dnl confd
 dnl ---------------
 if test "$enable_confd" != "" -a "$enable_confd" != "no"; then
@@ -2686,6 +2695,7 @@ dnl plugins
 AM_CONDITIONAL([RPKI], [test "$RPKI" = "true"])
 AM_CONDITIONAL([SNMP], [test "$SNMP_METHOD" = "agentx"])
 AM_CONDITIONAL([IRDP], [$IRDP])
+AM_CONDITIONAL([QPPB], [test "$enable_qppb" = "yes"])
 AM_CONDITIONAL([FPM], [test "$enable_fpm" = "yes"])
 AM_CONDITIONAL([HAVE_PROTOBUF], [test "$enable_protobuf" = "yes"])
 AM_CONDITIONAL([HAVE_PROTOBUF3], [$PROTO3])
