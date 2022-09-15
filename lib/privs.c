@@ -106,6 +106,7 @@ static pset_t *zcaps2sys(zebra_capabilities_t *, int);
 static void zprivs_caps_init(struct zebra_privs_t *);
 static void zprivs_caps_terminate(void);
 
+#define CAP_BPF			39
 /* Map of Quagga abstract capabilities to system capabilities */
 static struct {
 	int num;
@@ -166,6 +167,10 @@ static struct {
 		[ZCAP_SYS_RAWIO] =
 			{
 				1, (pvalue_t[]){CAP_SYS_RAWIO},
+			},
+		[ZCAP_BPF] =
+			{
+				1, (pvalue_t[]){CAP_BPF},
 			},
 #endif /* HAVE_LCAPS */
 };

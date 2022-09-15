@@ -68,12 +68,15 @@
 #include "bgpd/bgp_community.h"
 #include "bgpd/bgp_lcommunity.h"
 
+extern struct zebra_privs_t bgpd_privs;
 /* All information about zebra. */
 struct zclient *zclient = NULL;
 
 /* hook to indicate vrf status change for SNMP */
 DEFINE_HOOK(bgp_vrf_status_changed, (struct bgp *bgp, struct interface *ifp),
 	    (bgp, ifp));
+DEFINE_HOOK(bgp_qppb_mark_prefix, (const struct prefix *p, uint8_t dscp, bool add),
+	    (p, dscp, add));
 
 /* Can we install into zebra? */
 static inline bool bgp_install_info_to_zebra(struct bgp *bgp)
@@ -1559,10 +1562,10 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 
 	SET_FLAG(api.message, ZAPI_MESSAGE_METRIC);
 	api.metric = metric;
-	if (dscp) {
-		SET_FLAG(api.message, ZAPI_MESSAGE_DSCP);
-		api.dscp = dscp;
-	}
+	/* if (dscp) { */
+	/* 	SET_FLAG(api.message, ZAPI_MESSAGE_DSCP); */
+	/* 	api.dscp = dscp; */
+	/* } */
 
 	if (tag) {
 		SET_FLAG(api.message, ZAPI_MESSAGE_TAG);
@@ -1652,6 +1655,10 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 
 		zlog_debug("%s: %pFX: announcing to zebra (recursion %sset)",
 			   __func__, p, (recursion_flag ? "" : "NOT "));
+	}
+
+	frr_with_privs(&bgpd_privs) {
+		hook_call(bgp_qppb_mark_prefix, p, dscp, is_add);
 	}
 	zclient_route_send(is_add ? ZEBRA_ROUTE_ADD : ZEBRA_ROUTE_DELETE,
 			   zclient, &api);
@@ -3140,7 +3147,6 @@ stream_failure:		/* for STREAM_GETX */
 	return -1;
 }
 
-extern struct zebra_privs_t bgpd_privs;
 
 static int bgp_ifp_create(struct interface *ifp)
 {

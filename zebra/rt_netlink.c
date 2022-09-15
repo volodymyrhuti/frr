@@ -2030,9 +2030,9 @@ ssize_t netlink_route_multipath_msg_encode(int cmd,
 	req->r.rtm_dst_len = p->prefixlen;
 	req->r.rtm_src_len = src_p ? src_p->prefixlen : 0;
 	req->r.rtm_scope = RT_SCOPE_UNIVERSE;
-	req->r.rtm_tos = dplane_ctx_get_dscp(ctx);
-	if (req->r.rtm_tos)
-		req->r.rtm_flags |= RTM_F_DSCP;
+	/* req->r.rtm_tos = dplane_ctx_get_dscp(ctx); */
+	/* if (req->r.rtm_tos) */
+	/* 	req->r.rtm_flags |= RTM_F_DSCP; */
 
 	if (cmd == RTM_DELROUTE)
 		req->r.rtm_protocol = zebra2proto(dplane_ctx_get_old_type(ctx));
