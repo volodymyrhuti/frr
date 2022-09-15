@@ -36,6 +36,9 @@ vtysh_scan += \
 	bgpd/rfapi/vnc_debug.c \
 	# end
 endif
+if QPPB
+module_LTLIBRARIES += bgpd/bgpd_vyos_qppb.la
+endif
 if SNMP
 module_LTLIBRARIES += bgpd/bgpd_snmp.la
 endif
@@ -227,6 +230,11 @@ bgpd_bgpd_rpki_la_LIBADD = $(RTRLIB_LIBS)
 bgpd_bgpd_bmp_la_SOURCES = bgpd/bgp_bmp.c
 bgpd_bgpd_bmp_la_LIBADD = lib/libfrrcares.la
 bgpd_bgpd_bmp_la_LDFLAGS = $(MODULE_LDFLAGS)
+
+bgpd_bgpd_vyos_qppb_la_SOURCES = bgpd/bgp_vyos_qppb_private.c
+bgpd_bgpd_vyos_qppb_la_LIBADD = lib/libfrrcares.la
+bgpd_bgpd_vyos_qppb_la_LDFLAGS = $(MODULE_LDFLAGS) -Llibbpf/src/ -l:libbpf.a
+bgpd_bgpd_vyos_qppb_la_CFLAGS = $(AM_CFLAGS) -Ilibbpf/pkg/usr/include/
 
 clippy_scan += \
 	bgpd/bgp_bmp.c \

@@ -74,6 +74,8 @@ struct zclient *zclient = NULL;
 /* hook to indicate vrf status change for SNMP */
 DEFINE_HOOK(bgp_vrf_status_changed, (struct bgp *bgp, struct interface *ifp),
 	    (bgp, ifp));
+DEFINE_HOOK(bgp_qppb_mark_prefix, (const struct prefix *p, uint8_t dscp, bool add),
+	    (p, dscp, add));
 
 /* Can we install into zebra? */
 static inline bool bgp_install_info_to_zebra(struct bgp *bgp)
@@ -1650,6 +1652,8 @@ void bgp_zebra_announce(struct bgp_dest *dest, const struct prefix *p,
 		zlog_debug("%s: %pFX: announcing to zebra (recursion %sset)",
 			   __func__, p, (recursion_flag ? "" : "NOT "));
 	}
+
+	hook_call(bgp_qppb_mark_prefix, p, dscp, is_add);
 	zclient_route_send(is_add ? ZEBRA_ROUTE_ADD : ZEBRA_ROUTE_DELETE,
 			   zclient, &api);
 }

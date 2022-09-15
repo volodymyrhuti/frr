@@ -36,7 +36,7 @@ endif
 export PYTHON=python3
 
 %:
-	dh $@
+	dh $@ --parallel
 
 override_dh_auto_configure:
 	$(shell dpkg-buildflags --export=sh); \
@@ -62,6 +62,7 @@ override_dh_auto_configure:
 		--disable-zeromq \
 		--enable-ospfapi \
 		--enable-bgp-vnc \
+		--enable-qppb \
 		--enable-multipath=256 \
 		\
 		--enable-user=frr \
@@ -70,6 +71,19 @@ override_dh_auto_configure:
 		--enable-configfile-mask=0640 \
 		--enable-logfile-mask=0640 \
 		# end
+
+# TODO: Linkage fails for the master branch
+# relocation R_X86_64_PC32 against symbol `stderr@@GLIBC_2.2.5'
+# can not be used when making a shared object; recompile with -fPIC
+#       this is an older commit that works for now =>
+WORK_AROUND=9f519af7f4ab796ea56e31746aeba091a89fcefa
+override_dh_prep:
+	git submodule update --init --recursive
+	git -C libbpf checkout ${WORK_AROUND}
+	
+	mkdir -p libbpf/pkg libbpf/src/build
+	make -C libbpf/src
+	OBJDIR=build DESTDIR=${PWD}/libbpf/pkg make -C libbpf/src install
 
 override_dh_auto_install:
 	dh_auto_install
