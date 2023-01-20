@@ -344,7 +344,7 @@ class Topogen(object):
         self.peern += 1
         return self.gears[name]
 
-    def add_host(self, name, ip, defaultRoute):
+    def add_host(self, name, ip, defaultRoute, **kwargs):
         """
         Adds a new host to the topology. This function has the following
         parameters:
@@ -356,7 +356,7 @@ class Topogen(object):
         if name in self.gears:
             raise KeyError("host already exists")
 
-        self.gears[name] = TopoHost(self, name, ip=ip, defaultRoute=defaultRoute)
+        self.gears[name] = TopoHost(self, name, ip=ip, defaultRoute=defaultRoute, **kwargs)
         self.peern += 1
         return self.gears[name]
 
@@ -690,6 +690,7 @@ class TopoRouter(TopoGear):
         "/etc/snmp",
         "/var/run/frr",
         "/var/log",
+        # XXX: need to rbind(gearlog, /sys/fs/bpf)
     ]
 
     # Router Daemon enumeration definition.
@@ -759,6 +760,8 @@ class TopoRouter(TopoGear):
         tgen.net.add_host(self.name, cls=cls, **params)
         topotest.fix_netns_limits(tgen.net[name])
 
+        # XXX: for now keep for debugging?
+        self.bpfdir = "{}/bpf".format(self.gearlogdir, name)
         # Mount gear log directory on a common path
         self.net.bind_mount(self.gearlogdir, "/tmp/gearlogdir")
 
@@ -881,7 +884,7 @@ class TopoRouter(TopoGear):
         self.logger.debug("stopping (no assert)")
         return self.net.stopRouter(False)
 
-    def startDaemons(self, daemons):
+    def startDaemons(self, daemons, plugins=None):
         """
         Start Daemons: to start specific daemon(user defined daemon only)
         * Start daemons (e.g. FRR)
@@ -889,7 +892,7 @@ class TopoRouter(TopoGear):
         """
         self.logger.debug("starting")
         nrouter = self.net
-        result = nrouter.startRouterDaemons(daemons)
+        result = nrouter.startRouterDaemons(daemons, plugins=plugins)
 
         if daemons is None:
             daemons = nrouter.daemons.keys()
@@ -1112,6 +1115,9 @@ class TopoHost(TopoGear):
 
         # Mount gear log directory on a common path
         self.net.bind_mount(self.gearlogdir, "/tmp/gearlogdir")
+        # Ensure pid file
+        with open(os.path.join(self.logdir, self.name + ".pid"), "w") as f:
+            f.write(str(self.net.pid) + "\n")
 
     def __str__(self):
         gear = super(TopoHost, self).__str__()
