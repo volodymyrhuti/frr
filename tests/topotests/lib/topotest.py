@@ -679,7 +679,18 @@ def version_cmp(v1, v2):
     return 0
 
 
-def interface_set_status(node, ifacename, ifaceaction=False, vrf_name=None):
+def interface_to_ifindex(node, iface):
+    """
+    Gets the interface index using its name. Returns None on failure.
+    """
+    interfaces = json.loads(node.cmd_raises("ip -j link show"))
+    for interface in interfaces:
+        if interface["ifname"] == iface:
+            return int(interface["ifindex"])
+
+    return None
+
+def interface_set_status(node, ifacename, ifaceaction=False, vrf_name=None): #qqq
     if ifaceaction:
         str_ifaceaction = "no shutdown"
     else:
@@ -1335,6 +1346,14 @@ class Router(Node):
             l = topolog.get_logger(name, log_level="debug", target=logfile)
             params["logger"] = l
 
+        self.bpfdir = "{}/{}/bpf".format(self.logdir, name)
+        # XXX: unmount on router cleanup
+        # XXX: mouning before `unshare`, this way -
+        #      - pytest keeps BPF object handle
+        #      - namespace inherits the fs mappings
+        subprocess.check_call(
+            "mkdir -p {0} && mount -t bpf bpf {0} && mount --make-shared {0}".format(self.bpfdir), shell=True
+        )
         super(Router, self).__init__(name, **params)
 
         self.daemondir = None
@@ -1556,7 +1575,7 @@ class Router(Node):
                 if daemon == "frr" or not self.unified_config:
                     self.cmd_raises("rm -f " + conf_file)
                     self.cmd_raises("touch " + conf_file)
-            else:
+            elif not source == conf_file:
                 self.cmd_raises("cp {} {}".format(source, conf_file))
 
             if not self.unified_config or daemon == "frr":
@@ -1684,7 +1703,7 @@ class Router(Node):
     def getLog(self, log, daemon):
         return self.cmd("cat {}/{}/{}.{}".format(self.logdir, self.name, daemon, log))
 
-    def startRouterDaemons(self, daemons=None, tgen=None):
+    def startRouterDaemons(self, daemons=None, tgen=None, plugins=None):
         "Starts FRR daemons for this router."
 
         asan_abort = g_extra_config["asan_abort"]
@@ -1823,6 +1842,13 @@ class Router(Node):
                     )
                 else:
                     logger.info("%s: %s %s started", self, self.routertype, daemon)
+
+        # XXX: handle plugins properly - per daemon
+        bgpd_plugins = (plugins.get("bgpd") if plugins else None)
+        if "bgpd" in daemons_list and bgpd_plugins:
+            start_daemon("bgpd", bgpd_plugins)
+            while "bgpd" in daemons_list:
+                daemons_list.remove("bgpd")
 
         # Start Zebra first
         if "zebra" in daemons_list:

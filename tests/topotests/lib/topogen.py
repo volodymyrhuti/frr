@@ -703,6 +703,7 @@ class TopoRouter(TopoGear):
         "/etc/snmp",
         "/var/run/frr",
         "/var/log",
+        # XXX: need to rbind(gearlog, /sys/fs/bpf)
     ]
 
     # Router Daemon enumeration definition.
@@ -772,6 +773,8 @@ class TopoRouter(TopoGear):
         tgen.net.add_host(self.name, cls=cls, **params)
         topotest.fix_netns_limits(tgen.net[name])
 
+        # XXX: for now keep for debugging?
+        self.bpfdir = "{}/bpf".format(self.gearlogdir, name)
         # Mount gear log directory on a common path
         self.net.bind_mount(self.gearlogdir, "/tmp/gearlogdir")
 
@@ -894,7 +897,7 @@ class TopoRouter(TopoGear):
         self.logger.debug("stopping (no assert)")
         return self.net.stopRouter(False)
 
-    def startDaemons(self, daemons):
+    def startDaemons(self, daemons, plugins=None):
         """
         Start Daemons: to start specific daemon(user defined daemon only)
         * Start daemons (e.g. FRR)
@@ -902,7 +905,7 @@ class TopoRouter(TopoGear):
         """
         self.logger.debug("starting")
         nrouter = self.net
-        result = nrouter.startRouterDaemons(daemons)
+        result = nrouter.startRouterDaemons(daemons, plugins=plugins)
 
         if daemons is None:
             daemons = nrouter.daemons.keys()

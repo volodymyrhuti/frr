@@ -1,0 +1,37 @@
+## Color coding:
+#########################
+##  Main FRR: #f08080  red
+##  Switches: #d0e0d0  gray
+##  Hosts:    #4f4f4f  dark gray
+##  RIP:      #19e3d9  Cyan
+##  RIPng:    #fcb314  dark yellow
+##  OSPFv2:   #32b835  Green
+##  OSPFv3:   #19e3d9  Cyan
+##  ISIS IPv4 #fcb314  dark yellow
+##  ISIS IPv6 #9a81ec  purple
+##  BGP IPv4  #eee3d3  beige
+##  BGP IPv6  #fdff00  yellow
+##### Colors (see http://www.color-hex.com/)
+
+graph bgp_qppb_topo1{
+	labelloc="t";
+	label="QPPB Topo#1";
+
+	R1 [shape=doubleoctagon, label="R1\nAS100\nlo - 1.0.0.1/32", fillcolor="#f08080", style=filled];
+	R2 [shape=doubleoctagon, label="R2\nAS100", fillcolor="#f08080", style=filled];
+	R3 [shape=doubleoctagon, label="R3\nAS200", fillcolor="#f08080", style=filled];
+	H1 [shape=doubleoctagon, label="H1", fillcolor="#4f4f4f", style=filled];
+	H2 [shape=doubleoctagon, label="H2", fillcolor="#4f4f4f", style=filled];
+	S1 [ shape=oval, label="SW1", fillcolor="#d0e0d0", style=filled, ];
+
+	# Connections
+	R1 -- R2 [label="eth0 | 10..1/32  ----  20..1/32 | eth0\n"];
+	R2 -- R3 [label="eth1 | 20..2/32  ----  30..1/32 | eth0\n"];
+	R3 -- S1 [label="eth1 | 30..2/24\n"];
+	S1 -- H1 [label="eth0 | 30..3/32\n"];
+	S1 -- H2 [label="eth0 | 30..4/32\n"];
+
+
+	# Arrange network to make cleaner diagram
+	{ rank=same R1 R2 R3 S1 } { rank=same H1 H2 }
+}

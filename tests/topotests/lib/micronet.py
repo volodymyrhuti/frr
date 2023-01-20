@@ -448,18 +448,18 @@ class LinuxNamespace(Commander):
         Args:
             name: Internal name for the namespace.
             net: Create network namespace.
-            mount: Create network namespace.
+            mount: Create mount namespace.
             uts: Create UTS (hostname) namespace.
             cgroup: Create cgroup namespace.
             ipc: Create IPC namespace.
             pid: Create PID namespace, also mounts new /proc.
             time: Create time namespace.
             user: Create user namespace, also keeps capabilities.
-                set_hostname: Set the hostname to `name`, uts must also be True.
-                private_mounts: List of strings of the form
-                "[/external/path:]/internal/path. If no external path is specified a
-                tmpfs is mounted on the internal path. Any paths specified are first
-                passed to `mkdir -p`.
+            set_hostname: Set the hostname to `name`, uts must also be True.
+            private_mounts: List of strings of the form
+            "[/external/path:]/internal/path. If no external path is specified a
+            tmpfs is mounted on the internal path. Any paths specified are first
+            passed to `mkdir -p`.
             logger: Passed to superclass.
         """
         super(LinuxNamespace, self).__init__(name, logger)

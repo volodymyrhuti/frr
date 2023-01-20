@@ -1,0 +1,9 @@
+BGP routing table entry for 1.0.3.17/32, version XX
+Paths: (1 available, best #1, table default)
+  Advertised to non peer-group peers:
+  10.0.0.1 10.0.0.6
+  200
+    10.0.0.6 from 10.0.0.6 (1.0.3.17)
+      Origin incomplete, metric 0, valid, external, best (First path received)
+      QOS: Precedence af21 (18)
+      Last update: XXXX

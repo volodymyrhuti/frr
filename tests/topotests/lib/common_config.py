@@ -21,6 +21,7 @@
 import ipaddress
 import json
 import os
+import re
 import platform
 import socket
 import subprocess
@@ -403,7 +404,7 @@ def kill_router_daemons(tgen, router, daemons, save_config=True):
         return errormsg
 
 
-def start_router_daemons(tgen, router, daemons):
+def start_router_daemons(tgen, router, daemons, plugins=None):
     """
     Daemons defined by user would be started
     * `tgen`  : topogen object
@@ -417,7 +418,7 @@ def start_router_daemons(tgen, router, daemons):
         router_list = tgen.routers()
 
         # Start daemons
-        res = router_list[router].startDaemons(daemons)
+        res = router_list[router].startDaemons(daemons, plugins)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -1244,6 +1245,52 @@ def add_interfaces_to_vlan(tgen, input_dict):
                         logger.info("result %s", result)
 
 
+def find_msg_in_tcpdump(tgen, router, message, cap_file, count=0):
+    """
+    API to find messages in tcpdump capture file
+
+    Parameters
+    ----------
+    * `tgen`     : Topology handler
+    * `router`   : Name of DUT, string
+    * `cap_file` : tcp dump file name
+    * `message`  : expected pattern
+    * `count`    : number of matches
+
+
+    Usage
+    -----
+    tcpdump_result = find_msg_in_tcpdump(tgen, 'r3', 'tos 80', 'test.txt', 5)
+
+    Returns
+    -------
+    1) True if pa
+    2) errormsg - if number of matches doesn`t 
+    """
+    matches = 0
+    filepath = os.path.join(tgen.logdir, router, cap_file)
+    # breakpoint()
+    with open(filepath) as f:
+        matches = len(re.findall("{}".format(message), f.read()))
+        if count and matches < count:
+            errormsg = "[DUT: %s]: Verify Message: %s in tcpdump " "[%s!=%s FAILED!!]" % (
+                router,
+                count,
+                matches,
+                message,
+            )
+            return errormsg, matches
+
+        logger.info(
+            "[DUT: %s]: Found message: %s in tcpdump " " count: %s [PASSED!!]",
+            router,
+            message,
+            matches,
+        )
+    return matches != 0, matches
+
+
+# XXX: move into tcpdump HostApplicationHelper class (?)
 def tcpdump_capture_start(
     tgen,
     router,
@@ -1300,11 +1347,12 @@ def tcpdump_capture_start(
     if options:
         cmdargs += " -s 0 {}".format(str(options))
 
+    # breakpoint()
     if cap_file:
-        file_name = os.path.join(tgen.logdir, router, cap_file)
-        cmdargs += " -w {}".format(str(file_name))
+        # cap_file=os.path.join(rnode.gearlogdir, cap_file)
+        cmdargs += " -w {}".format(cap_file)
         # Remove existing capture file
-        rnode.run("rm -rf {}".format(file_name))
+        rnode.run("rm -rf {}".format(cap_file))
 
     if grepstr:
         cmdargs += ' | grep "{}"'.format(str(grepstr))
@@ -1315,7 +1363,16 @@ def tcpdump_capture_start(
     else:
         # XXX this & is bogus doesn't work
         # rnode.run("nohup {} & /dev/null 2>&1".format(cmdargs))
-        rnode.run("nohup {} > /dev/null 2>&1".format(cmdargs))
+        # XXX: some bug with CWD handling for nsenter
+        #      tcpdump fails to create/chown file if CWD not updated -.-
+        # XXX: hard to debug if redirections are bad
+        #      if something is bad, nothing returned
+        # XXX: looks like, nohup redirection is required,
+        #      otherwise process doesn't goes to background ;/
+
+        # breakpoint()
+        rnode.run("cd .; set +m; nohup &>{}/tcpdump.log {} &"
+                .format(tgen.logdir, cmdargs))
 
     # Check if tcpdump process is running
     if background:
@@ -1332,7 +1389,7 @@ def tcpdump_capture_start(
     return True
 
 
-def tcpdump_capture_stop(tgen, router):
+def tcpdump_capture_stop(tgen, router, initial_wait=0):
     """
     API to capture network packets using tcp dump.
 
@@ -1361,9 +1418,10 @@ def tcpdump_capture_stop(tgen, router):
     """
 
     logger.debug("Entering lib API: {}".format(sys._getframe().f_code.co_name))
+    if initial_wait:
+        sleep(initial_wait)
 
     rnode = tgen.gears[router]
-
     # Check if tcpdump process is running
     result = rnode.run("ps -ef | grep tcpdump")
     logger.debug("ps -ef | grep tcpdump \n {}".format(result))
@@ -1372,9 +1430,11 @@ def tcpdump_capture_stop(tgen, router):
         errormsg = "tcpdump is not running {}".format("tcpdump")
         return errormsg
     else:
-        # XXX this doesn't work with micronet
-        ppid = tgen.net.nameToNode[rnode.name].pid
-        rnode.run("set +m; pkill -P %s tcpdump &> /dev/null" % ppid)
+        # XXX this doesn't work with micronet, make better
+        # ppid = rnode.net.pid
+        # rnode.run("set +m; sudo pkill -P %s tcpdump &> /dev/null" % ppid)
+        # XXX setup custom signal handler for tcpdump?
+        rnode.run("set +m; sudo killall tcpdump &> /dev/null")
         logger.info("Stopped tcpdump capture")
 
     logger.debug("Exiting lib API: {}".format(sys._getframe().f_code.co_name))
@@ -2442,6 +2502,8 @@ def create_route_maps(tgen, input_dict, build=False):
     # med: metric value advertised for AS
     # aspath: set AS path value
     # weight: weight for the route
+    # dscp: dscp for the routed traffic, int or code point name
+    #   XXX: check how error get`s handled on EINVALID/EOUTRANGE cases(?)
     # community: standard community value to be attached
     # large_community: large community value to be attached
     # community_additive: if set to "additive", adds community/large-community
@@ -2474,6 +2536,7 @@ def create_route_maps(tgen, input_dict, build=False):
                         "set": {
                             "locPrf": 150,
                             "metric": 30,
+                            "dscp": "af21",
                             "path": {
                                 "num": 20000,
                                 "action": "prepend",
@@ -2573,6 +2636,7 @@ def create_route_maps(tgen, input_dict, build=False):
                         ipv6_data = set_data.setdefault("ipv6", {})
                         local_preference = set_data.setdefault("locPrf", None)
                         metric = set_data.setdefault("metric", None)
+                        dscp = set_data.setdefault("dscp", None)
                         metric_type = set_data.setdefault("metric-type", None)
                         as_path = set_data.setdefault("path", {})
                         weight = set_data.setdefault("weight", None)
@@ -2602,6 +2666,14 @@ def create_route_maps(tgen, input_dict, build=False):
                                 rmap_data.append("no set metric {}".format(metric))
                             else:
                                 rmap_data.append("set metric {}".format(metric))
+
+                        # Dscp
+                        if dscp:
+                            del_comm = set_data.setdefault("delete", None)
+                            if del_comm:
+                                rmap_data.append("no set dscp {}".format(dscp))
+                            else:
+                                rmap_data.append("set dscp {}".format(dscp))
 
                         # Origin
                         if origin:
