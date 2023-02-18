@@ -33,6 +33,7 @@
 #include "lib/if.h"
 #include "lib/if_rmap.h"
 #include "lib/imsg.h"
+#include "lib/dscp.h"
 #include "lib/ipaddr.h"
 #include "lib/jhash.h"
 #include "lib/json.h"
