@@ -151,7 +151,8 @@ static struct {
 		[ZCAP_SYS_RAWIO] =
 			{
 				1, (pvalue_t[]){CAP_SYS_RAWIO},
-			},
+			}
+		/* XXX: [ZCAP_BPF] = CAP_BPF(39) */
 #endif /* HAVE_LCAPS */
 };
 
