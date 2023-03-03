@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * XDP handler from mark/classifing traffic
+ * Copyright (C) 2023 VyOS Inc.
+ * Volodymyr Huti
+ */
+
 #include <linux/if_ether.h>
 #include <linux/pkt_cls.h>
 #include <linux/socket.h>
@@ -111,12 +118,12 @@ int xdp_qppb(struct xdp_md *ctx)
 	void *data     = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
 	struct iphdr *iph = data + sizeof(struct ethhdr);
-	__be16 h_proto = ((struct ethhdr *)data)->h_proto;
 	__u64 nh_off = sizeof(struct ethhdr);
-	struct bpf_fib_lookup fib_params;
+	__u32 ifindex = ctx->ingress_ifindex;
 	union lpm_key4_u key4;
 	__u8 *mark, qppb_mode;
 	__u32 *qppb_mkey;
+	__be16 h_proto;
 
 	if (data + nh_off > data_end)
 		goto drop;
@@ -127,6 +134,13 @@ int xdp_qppb(struct xdp_md *ctx)
 	if ((void *)(meta + 1) > data)
                 goto aborted;
 #endif
+	qppb_mkey = qppb_mode_map.lookup(&ifindex);
+	qppb_mode = qppb_mkey ? *qppb_mkey : BGP_POLICY_NONE;
+	// skip packets if bgp mode was not configured
+	if (qppb_mode == BGP_POLICY_NONE)
+		goto skip;
+
+	h_proto = ((struct ethhdr *)data)->h_proto;
 	if (h_proto != bpf_htons(ETH_P_IP) || iph->ttl <= 1)
 		goto skip;
 #if defined(RESPECT_TOS)
@@ -134,31 +148,13 @@ int xdp_qppb(struct xdp_md *ctx)
 	#if defined(MARK_META)
 		meta->mark = iph->tos;
 		#if defined(LOG_QPPB)
-		bpf_trace_printk("XDP ignore marked packet [%d|%d]", iph->tos, meta->mark);
+		bpf_trace_printk("XDP ignore marked packet [%d|%d]",
+				 iph->tos, meta->mark);
 		#endif
 	#endif
 		goto skip;
 	}
 #endif
-
-	__builtin_memset(&fib_params, 0, sizeof(fib_params));
-	fib_params.tot_len	= bpf_ntohs(iph->tot_len);
-	fib_params.ifindex	= ctx->ingress_ifindex;
-	fib_params.l4_protocol	= iph->protocol;
-	fib_params.ipv4_src	= iph->saddr;
-	fib_params.ipv4_dst	= iph->daddr;
-	fib_params.tos		= iph->tos;
-	fib_params.family	= AF_INET;
-
-	qppb_mkey = qppb_mode_map.lookup(&fib_params.ifindex);
-	qppb_mode = qppb_mkey ? *qppb_mkey : BGP_POLICY_NONE;
-	if (qppb_mode == BGP_POLICY_NONE)
-		goto skip;
-
-	rc = bpf_fib_lookup(ctx, &fib_params, sizeof(fib_params), 0);
-	if (rc != BPF_FIB_LKUP_RET_SUCCESS)
-		goto out;
-
 	key4.b32[0] = 32;
 	switch (qppb_mode) {
 		case BGP_POLICY_DST:

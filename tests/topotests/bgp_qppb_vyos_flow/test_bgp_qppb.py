@@ -165,6 +165,7 @@ def setup_module(mod):
         apply_raw_config(tgen, debug_rmap_dict)
 
     setup_test_hosts(tgen, r1)
+    load_qppb_plugin(tgen, r1)
     r1.vtysh_cmd(
         """
           configure
@@ -204,7 +205,6 @@ def test_xdp_lpm(tgen):
     r1 = tgen.gears["r1"]
     r4 = tgen.gears["r4"]
 
-    load_qppb_plugin(tgen, r1)
     qppb_map = r1.bpf[b"qppb_mode_map"]
     dscp_map = r1.bpf[b"dscp_map"]
 
