@@ -93,39 +93,106 @@ dscp_tos = lambda x: x << 2
  ip rule show
 """
 
+def tc_bpf_filter(rnode, ifid):
+    "Attach tc bpf filter, depends on pyroute2 package"
+    import pyroute2
+    from pyroute2.netns import pushns, popns
+
+    tc_fn = rnode.bpf.funcs[b"xdp_vrf"]
+    rnode_ns = "/proc/{}/ns/net".format(rnode.net.pid)
+
+    logger.debug("Attach TC-BPF handler '{}'\nNetNS --> {})".format(ifid, rnode_ns))
+    # ip.tc("add", "clsact", ifid, "1:")
+    pushns(rnode_ns)
+    ip = pyroute2.IPRoute()
+    ip.tc("add", "ingress", ifid, "ffff:")
+    ip.tc("add-filter", "bpf", ifid, 20, fd=tc_fn.fd, name=tc_fn.name,
+            parent="ffff:", classid=1, action="drop", direct_action=True)
+    popns()
+
+
 def test_dscp_vrf(tgen):
     r1 = tgen.gears['r1']
     r2 = tgen.gears['r2']
     r3 = tgen.gears['r3']
     r4 = tgen.gears['r4']
 
-    red = xdp_ifindex(r1, "RED")
-    blue = xdp_ifindex(r1, "BLUE")
-    # red = xdp_ifindex(r1, "r1-r2-eth0")
-    # blue = xdp_ifindex(r1, "r1-r3-eth1")
+    # red = xdp_ifindex(r1, "RED")
+    # blue = xdp_ifindex(r1, "BLUE")
+    red = xdp_ifindex(r1, "r1-r2-eth0")
+    blue = xdp_ifindex(r1, "r1-r3-eth1")
 
     r1.cmd_raises("sysctl -w net.ipv4.conf.all.proxy_arp=1")
-    r1.cmd_raises("ip route add 192.168.1.0/24 dev RED")
-    r1.cmd_raises("ip addr add 192.168.1.254/24 dev RED")
-    r1.cmd_raises("ip addr add 192.168.1.254/24 dev BLUE")
+    r1.cmd_raises("""
+            ip rule add pref 32765 table local
+            ip rule del pref 0
+            ip rule show
+            """)
+    # r1.cmd_raises("ip route add 192.168.1.0/24 dev RED")
+    # r1.cmd_raises("ip addr add 192.168.1.254/24 dev RED")
+    # r1.cmd_raises("ip addr add 192.168.1.254/24 dev BLUE")
 
     for r in tgen.gears.values():
         load_vrf_plugin(tgen, r)
+
     for r in [r2, r3, r4]:
         router_attach_xdp(r, "%s-r1-eth0" % r.name, b"xdp_dummy")
         r.cmd_raises("ip route add default dev %s-r1-eth0" % r.name)
 
-    for iface in ["r1-r2-eth0", "r1-r3-eth1", "RED", "BLUE"]:
+    for iface in ["r1-r2-eth0", "r1-r3-eth1"]:
         router_attach_xdp(r1, iface, b"xdp_dummy");
 
-    router_attach_xdp(r1, "r1-r4-eth2")
-    r1.cmd_raises("ip l set r1-r4-eth2 master RED")
+    ingress_if = interface_to_ifindex(r1, "r1-r4-eth2")
+    # router_attach_xdp(r1, "r1-r4-eth2")
+    # r1.cmd_raises("ip l set r1-r4-eth2 master RED")
     dscp_iface_map = r1.bpf['dscp_iface_map']
     dscp_iface_map[c_uint(10)] = red
     dscp_iface_map[c_uint(20)] = blue
-
+    # breakpoint()
+    tc_bpf_filter(r1, ingress_if)
     breakpoint()
+"""
+- Need requirements/setup clarifications from customer
+- Redirecting from root vrf -> vrf should be possible?
+The redirection on XDP side requires updating src/dst ether for packet.
+Neighbour may be resolved within single vrf while missing in another
+You have no TOS for arp packet, which vrf should be used as controll plane?
+Otherwise, no such problem if you set arps mannually
 
+For more details - Forwarding from tc classifier
+https://lore.kernel.org/bpf/CACAyw9_4Uzh0GqAR16BfEHQ0ZWHKGUKacOQwwhwsfhdCTMtsNQ@mail.gmail.com/
+
+I have tried redirecting to INGRESS from tc classifier, but it doesn`t work well,
+would need chatting with devs to figure this out.
+
+- VRF docs
+https://github.com/Mellanox/mlxsw/wiki/Virtual-Routing-and-Forwarding-%28VRF%29
+https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-54/Layer-3/VRFs/Virtual-Routing-and-Forwarding-VRF/##
+
+- ip rule tos <vrf_table_id>
+https://unix.stackexchange.com/questions/493453/ip-rule-doesnt-work-with-tos-greater-than-0x10
+https://baturin.org/docs/iproute2/#ip-rule-add-tos
+
+- setsockopt(SO_BINDTODEVICE), bind connection (socket) to specific vrf, 
+https://lore.kernel.org/bpf/20200521125247.30178-1-fejes@inf.elte.hu/
+https://lwn.net/Articles/708019/  net: Add bpf support for sockets
+https://github.com/torvalds/linux/tree/master/samples/bpf
+https://elixir.bootlin.com/linux/latest/source/samples/bpf/tcp_clamp_kern.c
+https://github.com/torvalds/linux/blob/master/samples/bpf/tcp_tos_reflect_kern.c
+- map/hash packet to socket in specific vrf ?
+https://github.com/zachidan/ebpf-sockops/blob/master/bpf_sockops.c
+
+- cilium SRv6, example vrf in bpf
+https://github.com/cilium/cilium/commit/f42a49011ca7fac4ae824cf767de18059b40da78
+https://github.com/cilium/cilium/commit/86777c241f83dacede5191a950c35eda0c446bea
+
+- Redir example
+https://github.com/p4lang/p4c/blob/main/backends/ebpf/psa/README.md
+https://github.com/p4lang/p4c/blob/f1181a071844f759b618ed3c894cf56e2df1dd05/backends/ebpf/psa/ebpfPipeline.cpp#L594
+
+- random
+https://github.com/SPYFF/ebpf-vrf
+"""
 
 if __name__ == "__main__":
     args = ["-s"] + sys.argv[1:]
@@ -179,7 +246,7 @@ def load_vrf_plugin(tgen, rnode, debug_on=True):
         b = BPF(src_file=src_file.encode(), cflags=bpf_flags, debug=debug)
 
         logger.info("Loading XDP hooks -- xdp_vrf")
-        b.load_func(b"xdp_vrf", BPF.XDP)
+        b.load_func(b"xdp_vrf", BPF.SCHED_CLS)
         b.load_func(b"xdp_dummy", BPF.XDP)
         rnode.bpf = b
     except Exception as e:
