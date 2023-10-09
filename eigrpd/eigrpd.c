@@ -140,6 +140,7 @@ static struct eigrp *eigrp_new(uint16_t as, vrf_id_t vrf_id)
 
 	/* init internal data structures */
 	eigrp->eiflist = list_new();
+	eigrp->passive_nondefault = vector_init(1);
 	eigrp->passive_interface_default = EIGRP_IF_ACTIVE;
 	eigrp->networks = eigrp_topology_new();
 
@@ -267,8 +268,10 @@ void eigrp_finish_final(struct eigrp *eigrp)
 	list_delete(&eigrp->eiflist);
 	list_delete(&eigrp->oi_write_q);
 
-	eigrp_topology_free(eigrp, eigrp->topology_table);
+	eigrp_passive_nondefault_clean(eigrp);
+	vector_free(eigrp->passive_nondefault);
 
+	eigrp_topology_free(eigrp, eigrp->topology_table);
 	eigrp_nbr_delete(eigrp->neighbor_self);
 
 	list_delete(&eigrp->topology_changes_externalIPV4);

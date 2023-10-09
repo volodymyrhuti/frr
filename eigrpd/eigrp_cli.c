@@ -121,6 +121,23 @@ void eigrp_cli_show_router_id(struct vty *vty, const struct lyd_node *dnode,
 }
 
 /*
+ * XPath: /frr-ripd:ripd/instance/passive-default
+ */
+DEFPY_YANG(
+	eigrp_passive_default,
+	eigrp_passive_default_cmd,
+	"[no] passive-interface default",
+	NO_STR
+	"Suppress routing updates on an interface\n"
+	"default for all interfaces\n")
+{
+	nb_cli_enqueue_change(vty, "./passive-default", NB_OP_MODIFY,
+			      no ? "false" : "true");
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+/*
  * XPath: /frr-eigrpd:eigrpd/instance/passive-interface
  */
 DEFPY_YANG(
@@ -131,12 +148,19 @@ DEFPY_YANG(
 	"Suppress routing updates on an interface\n"
 	"Interface to suppress on\n")
 {
-	if (no)
+	bool passive_default =
+		yang_dnode_get_bool(vty->candidate_config->dnode, "%s%s",
+				    VTY_CURR_XPATH, "/passive-default");
+
+	if (passive_default) {
+		nb_cli_enqueue_change(vty, "./non-passive-interface",
+				      no ? NB_OP_CREATE : NB_OP_DESTROY,
+				      ifname);
+	} else {
 		nb_cli_enqueue_change(vty, "./passive-interface",
-				      NB_OP_DESTROY, ifname);
-	else
-		nb_cli_enqueue_change(vty, "./passive-interface",
-				      NB_OP_CREATE, ifname);
+				      no ? NB_OP_DESTROY : NB_OP_CREATE,
+				      ifname);
+	}
 
 	return nb_cli_apply_changes(vty, NULL);
 }
@@ -148,6 +172,15 @@ void eigrp_cli_show_passive_interface(struct vty *vty,
 	const char *ifname = yang_dnode_get_string(dnode, NULL);
 
 	vty_out(vty, " passive-interface %s\n", ifname);
+}
+
+void eigrp_cli_show_non_passive_interface(struct vty *vty,
+					  const struct lyd_node *dnode,
+					  bool show_defaults)
+{
+	const char *ifname = yang_dnode_get_string(dnode, NULL);
+
+	vty_out(vty, "no passive-interface %s\n", ifname);
 }
 
 /*
@@ -826,6 +859,14 @@ void eigrp_cli_show_keychain(struct vty *vty, const struct lyd_node *dnode,
 		keychain);
 }
 
+void eigrpd_cli_show_passive_default(struct vty *vty, const struct lyd_node *dnode,
+				     bool show_defaults)
+{
+	if (!yang_dnode_get_bool(dnode, NULL))
+		vty_out(vty, " no");
+
+	vty_out(vty, " passive-interface default\n");
+}
 
 /*
  * CLI installation procedures.
@@ -865,6 +906,7 @@ eigrp_cli_init(void)
 	install_element(EIGRP_NODE, &eigrp_router_id_cmd);
 	install_element(EIGRP_NODE, &no_eigrp_router_id_cmd);
 	install_element(EIGRP_NODE, &eigrp_passive_interface_cmd);
+	install_element(EIGRP_NODE, &eigrp_passive_default_cmd);
 	install_element(EIGRP_NODE, &eigrp_timers_active_cmd);
 	install_element(EIGRP_NODE, &no_eigrp_timers_active_cmd);
 	install_element(EIGRP_NODE, &eigrp_variance_cmd);
